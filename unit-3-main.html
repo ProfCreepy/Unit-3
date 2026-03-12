@@ -116,7 +116,11 @@ canvas{flex:1;display:block}
   width:186px;background:var(--surf);border-left:1px solid var(--bd);
   display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0;
   scrollbar-width:thin;scrollbar-color:#1a1a28 transparent;
+  position:fixed;right:0;top:0;bottom:0;z-index:50;
+  padding-top:0;
 }
+/* push canvas area left of the fixed panel */
+.main{margin-right:186px;}
 .rpanel::-webkit-scrollbar{width:3px}
 .rpanel::-webkit-scrollbar-thumb{background:#1a1a28;border-radius:2px}
 
@@ -223,6 +227,8 @@ canvas{flex:1;display:block}
 
 
 @media (pointer: coarse) {
+  .rpanel{display:none;}
+  .main{margin-right:0;}
   #hint { display: none; }
   header { padding: 8px 12px; gap: 8px; }
   .btn { font-size: 13px; padding: 7px 14px; }
