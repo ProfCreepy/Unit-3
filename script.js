@@ -185,7 +185,22 @@ let panning     = false, panSX = 0, panSY = 0, panOX = 0, panOY = 0;
 let mouseCell   = null;
 let spaceDown   = false;
 let interactMode = false;
-const flashCells = new Map(); // "x,y" → timeoutId for visual flash
+const flashCells = new Map();
+let _holdRaf = null;
+
+function _holdStep() {
+  if (_holdRaf === null) return;
+  doStep(); draw();
+  _holdRaf = requestAnimationFrame(_holdStep);
+}
+function startHold() {
+  if (_holdRaf !== null) return;
+  _holdRaf = requestAnimationFrame(_holdStep);
+}
+function stopHold() {
+  if (_holdRaf !== null) cancelAnimationFrame(_holdRaf);
+  _holdRaf = null;
+} // "x,y" → timeoutId for visual flash
 
 function setTool(id) {
   activeTool = id;
@@ -246,22 +261,15 @@ canvas.addEventListener('mousedown', e => {
       const LEVER = registry.typeId('LEVER');
 
       if (BTN !== undefined && cell.type === BTN) {
-        // Button: press → step → flash → auto-release → step
-        userIOExtension.pressButton(grid, cx, cy);
-        if (!grid._net) grid.compile();
-        doStep();
-        // Flash the button visually even after release
-        const fKey = `${cx},${cy}`;
-        clearTimeout(flashCells.get(fKey));
-        flashCells.set(fKey, setTimeout(() => { flashCells.delete(fKey); draw(); }, 120));
-        draw();
-        userIOExtension.releaseAll(grid);
-        doStep();
+        // Button: hold ON while mouse is down, start step loop
+        userIOExtension.pressButton(cx, cy);
+        grid._net = null;
+        startHold();
       } else if (LEVER !== undefined && cell.type === LEVER) {
-        // Lever: toggle state
-        const newState = userIOExtension.toggleLever(grid, cx, cy);
-        if (!grid._net) grid.compile();
-        doStep();
+        // Lever: toggle and force recompile so override is picked up
+        const newState = userIOExtension.toggleLever(cx, cy);
+        grid._net = null;
+        doStep(); draw();
         log(`Lever (${cx},${cy}) → ${newState ? 'ON' : 'OFF'}`, 'info');
       }
     }
@@ -299,9 +307,17 @@ canvas.addEventListener('mousemove', e => {
 
 canvas.addEventListener('mouseup', e => {
   if (e.button === 1) { panning = false; canvas.style.cursor = 'crosshair'; }
-  if (e.button === 0 || e.button === 2) {
-    if (!interactMode) drawing = false;
+  if (e.button === 0) {
+    if (interactMode) {
+      stopHold();
+      userIOExtension.releaseAll();
+      grid._net = null;
+      doStep(); draw();
+    } else {
+      drawing = false;
+    }
   }
+  if (e.button === 2 && !interactMode) drawing = false;
 });
 
 canvas.addEventListener('contextmenu', e => e.preventDefault());
@@ -374,7 +390,7 @@ document.getElementById('btn-interact')?.addEventListener('click', toggleInterac
 document.getElementById('btn-run').addEventListener('click',  () => running ? stopRun() : startRun());
 document.getElementById('btn-reset').addEventListener('click', () => {
   stopRun();
-  userIOExtension.releaseAll(grid);
+  userIOExtension.releaseAll();
   grid.resetStates();
   draw(); log('Reset', 'info');
 });
