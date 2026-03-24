@@ -309,10 +309,14 @@ canvas.addEventListener('mouseup', e => {
   if (e.button === 1) { panning = false; canvas.style.cursor = 'crosshair'; }
   if (e.button === 0) {
     if (interactMode) {
-      stopHold();
-      userIOExtension.releaseAll();
-      grid._net = null;
-      doStep(); draw();
+      if (_holdRaf !== null) {
+        // A button was being held — stop and release
+        stopHold();
+        userIOExtension.releaseButtons();
+        grid._net = null;
+        doStep(); draw();
+      }
+      // Lever clicks don't need mouseup handling
     } else {
       drawing = false;
     }
