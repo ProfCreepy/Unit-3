@@ -1,3 +1,3 @@
-export default function Divider({ direction = "vertical" }) {
-    return <div className={`divider divider-${direction}`} />;
+export default function Divider() {
+    return <div className={'divider'} />;
 }

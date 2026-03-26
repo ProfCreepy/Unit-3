@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import './App.css'
-import Divider from './components/divider';
-import { Upload } from 'lucide-react';
+import Divider from './components/Divider';
+import Spacer from './components/Spacer';
+import { Settings2Icon, ImageIcon, UploadIcon, DownloadIcon, BlocksIcon, PlayIcon, StepForwardIcon, PencilIcon, MousePointer2Icon, PointerIcon } from 'lucide-react';
 
-function Header() {
+function Header({ onToggle }) {
   return (
-    <header>
+    <header className='header'>
       <h1>Unit 3</h1>
 
       <Divider />
@@ -14,22 +15,51 @@ function Header() {
 
       <Divider />
 
-      <Upload />
+      <UploadIcon size={40} />
+      <DownloadIcon size={40} />
+      <ImageIcon size={40} />
+
+      <Divider />
+
+      <Spacer />
+
+      <button
+        className="icon-button"
+        onClick={() => onToggle('settings')}
+        aria-label="open settings"
+      >
+        <Settings2Icon size={40} />
+      </button>
+
+      <button
+        className="icon-button"
+        onClick={() => onToggle('extensions')}
+        aria-label="open extensions"
+      >
+        <BlocksIcon size={40} />
+      </button>
     </header>
   );
 }
 
 function Tools() {
   return (
-    <section>
-      tools
+    <section className='tools'>
+      <PlayIcon size={40} />
+      <StepForwardIcon size={40} />
+
+      <Divider />
+
+      <PencilIcon size={40} />
+      <MousePointer2Icon size={40} />
+      <PointerIcon size={40} />
     </section>
   );
 }
 
 function Canvas() {
   return (
-    <main>
+    <main className='canvas'>
       canvas
     </main>
   );
@@ -37,7 +67,7 @@ function Canvas() {
 
 function Settings() {
   return (
-    <aside>
+    <aside className='settings'>
       settings
     </aside>
   );
@@ -45,23 +75,27 @@ function Settings() {
 
 function Extensions() {
   return (
-    <aside>
+    <aside className='extensions'>
       extensions
     </aside>
   );
 }
 
 function App() {
-  const [settings, setSettings] = useState(false);
-  const [extensions, setExtensions] = useState(false);
+  const [activeSidebar, setActiveSidebar] = useState(null);
+
+  const toggleSidebar = (name) => {
+    // Wenn die geklickte Sidebar schon offen ist -> schließen (null), sonst öffnen (name)
+    setActiveSidebar(prev => prev === name ? null : name);
+  };
 
   return (
     <>
-      <Header />
+      <Header onToggle={toggleSidebar} />
       <Tools />
       <Canvas />
-      {settings && <Settings />}
-      {extensions && <Extensions />}
+      {activeSidebar === 'settings' && <Settings />}
+      {activeSidebar === 'extensions' && <Extensions />}
     </>
   );
 }
