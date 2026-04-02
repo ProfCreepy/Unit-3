@@ -1,0 +1,186 @@
+/* ===== Sidebar Layout ===== */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: #FFFFFF;
+  border-left: 1px solid #E5E7EB;
+}
+
+.sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.sidebar-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.close-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #6B7280;
+  transition: all 0.2s ease;
+}
+
+.close-button:hover {
+  background-color: #F3F4F6;
+  color: #111827;
+}
+
+.sidebar-content {
+  flex: 1;
+  padding: 1rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* ===== Settings Form ===== */
+.setting-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.setting-group label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.setting-group input[type='text'],
+.setting-group input[type='number'],
+.setting-group select {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #D1D5DB;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-family: "Roboto Mono", monospace;
+  background-color: #F9FAFB;
+  color: #1F2937;
+  transition: all 0.2s ease;
+}
+
+.setting-group input[type='text']:focus,
+.setting-group input[type='number']:focus,
+.setting-group select:focus {
+  outline: none;
+  border-color: #3B82F6;
+  background-color: #FFFFFF;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.setting-group input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #3B82F6;
+}
+
+/* ===== Extensions List ===== */
+.add-extension-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background-color: #3B82F6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.add-extension-btn:hover {
+  background-color: #2563EB;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+}
+
+.add-extension-btn:active {
+  transform: translateY(0);
+}
+
+.extensions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.extension-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  background-color: #F9FAFB;
+  border: 1px solid #E5E7EB;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.extension-item:hover {
+  background-color: #F3F4F6;
+  border-color: #D1D5DB;
+}
+
+.extension-info {
+  flex: 1;
+  margin-right: 1rem;
+}
+
+.extension-info h3 {
+  margin: 0 0 0.25rem 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.extension-info p {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #6B7280;
+}
+
+.extension-toggle {
+  width: 40px;
+  height: 24px;
+  cursor: pointer;
+  accent-color: #10B981;
+}
+
+/* ===== Scrollbar für Sidebars ===== */
+.sidebar-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-content::-webkit-scrollbar-track {
+  background: #F9FAFB;
+}
+
+.sidebar-content::-webkit-scrollbar-thumb {
+  background: #D1D5DB;
+  border-radius: 3px;
+}
+
+.sidebar-content::-webkit-scrollbar-thumb:hover {
+  background: #9CA3AF;
+}

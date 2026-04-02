@@ -1,19 +1,20 @@
 import Divider from './Divider';
 import { PlayIcon, StepForwardIcon, PencilIcon, MousePointer2Icon, PointerIcon } from 'lucide-react';
+import { getToolColor, getCellColor } from '../theme';
 
 function PenIcon() {
-  return <PencilIcon size={40} />;
+  return <PencilIcon size={40} strokeWidth={1.5} />;
 }
 
 function SelectIcon() {
-  return <PointerIcon size={40} />;
+  return <PointerIcon size={40} strokeWidth={1.5} />;
 }
 
 function InteractIcon() {
-  return <MousePointer2Icon size={40} />;
+  return <MousePointer2Icon size={40} strokeWidth={1.5} />;
 }
 
-// CellType mit besserer Struktur
+// CellType mit besserer Struktur und dynamischen Farben
 function CellTypePicker() {
   const cellTypes = [
     { id: 'cable', label: 'Cable' },
@@ -35,7 +36,13 @@ function CellTypePicker() {
           title={cell.label}
           onClick={() => handleCellTypeClick(cell.id)}
           aria-label={cell.label}
+          style={{
+            borderColor: getCellColor(cell.id),
+            color: getCellColor(cell.id),
+            backgroundColor: `${getCellColor(cell.id)}15`, // 15% opacity
+          }}
         >
+          {cell.label.substring(0, 1)}
         </button>
       ))}
     </div>
@@ -43,14 +50,26 @@ function CellTypePicker() {
 }
 
 export default function Tools({ onToggle, active }) {
+  const iconSize = 40;
+  
   return (
     <section className='tools'>
-      <button className='icon-button' onClick={() => alert('play')}>
-        <PlayIcon size={40} />
+      <button 
+        className='icon-button' 
+        onClick={() => alert('play')}
+        style={{ color: getToolColor('play') }}
+        title="Play"
+      >
+        <PlayIcon size={iconSize} strokeWidth={1.5} />
       </button>
 
-      <button className='icon-button' onClick={() => alert('step')}>
-        <StepForwardIcon size={40} />
+      <button 
+        className='icon-button' 
+        onClick={() => alert('step')}
+        style={{ color: getToolColor('step') }}
+        title="Step"
+      >
+        <StepForwardIcon size={iconSize} strokeWidth={1.5} />
       </button>
 
       <Divider direction='horizontal' />
@@ -58,7 +77,9 @@ export default function Tools({ onToggle, active }) {
       <button
         className={`icon-button ${active === 'pen' ? 'active' : ''}`}
         onClick={() => onToggle('pen')}
+        style={{ color: getToolColor('pen') }}
         aria-label="pen tool"
+        title="Pen Tool"
       >
         <PenIcon />
       </button>
@@ -69,7 +90,9 @@ export default function Tools({ onToggle, active }) {
       <button
         className={`icon-button ${active === 'select' ? 'active' : ''}`}
         onClick={() => onToggle('select')}
+        style={{ color: getToolColor('select') }}
         aria-label="select tool"
+        title="Select Tool"
       >
         <SelectIcon />
       </button>
@@ -77,7 +100,9 @@ export default function Tools({ onToggle, active }) {
       <button
         className={`icon-button ${active === 'interact' ? 'active' : ''}`}
         onClick={() => onToggle('interact')}
+        style={{ color: getToolColor('interact') }}
         aria-label="interact tool"
+        title="Interact Tool"
       >
         <InteractIcon />
       </button>
