@@ -1,0 +1,246 @@
+/* ===== CANVAS CONTAINER ===== */
+.canvas {
+  grid-area: canvas;
+  background-color: #F9FAFB;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 2rem;
+  gap: 1rem;
+}
+
+/* ===== CANVAS WRAPPER (mit Zoom) ===== */
+.canvas-wrapper {
+  position: relative;
+  background-color: #FFFFFF;
+  border: 2px solid #E5E7EB;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s ease;
+}
+
+.canvas-wrapper:hover {
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+
+/* ===== SVG CANVAS ===== */
+.canvas-svg {
+  display: block;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: cursor 0.2s ease;
+}
+
+/* ===== GRID LINES ===== */
+.grid-line {
+  stroke: #E5E7EB;
+  stroke-width: 0.5;
+  pointer-events: none;
+}
+
+/* Grid weniger sichtbar beim Zoomen */
+.canvas svg:hover .grid-line {
+  stroke: #D1D5DB;
+}
+
+/* ===== CELLS (Grid Elemente) ===== */
+.cell {
+  cursor: pointer;
+  transition: all 0.15s ease;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.05));
+}
+
+.cell:hover {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+  opacity: 0.9;
+}
+
+.cell:active {
+  filter: drop-shadow(0 0 0 2px rgba(0, 0, 0, 0.2));
+}
+
+/* ===== CELL TYPES ===== */
+.cell-cable {
+  fill: #3B82F6 !important;
+  opacity: 0.9;
+}
+
+.cell-cable:hover {
+  opacity: 1;
+  fill: #2563EB !important;
+}
+
+.cell-inverter {
+  fill: #F59E0B !important;
+  opacity: 0.9;
+}
+
+.cell-inverter:hover {
+  opacity: 1;
+  fill: #D97706 !important;
+}
+
+.cell-delay {
+  fill: #8B5CF6 !important;
+  opacity: 0.9;
+}
+
+.cell-delay:hover {
+  opacity: 1;
+  fill: #7C3AED !important;
+}
+
+/* ===== CELL LABELS ===== */
+.cell-label {
+  fill: #FFFFFF;
+  font-weight: bold;
+  font-family: "Roboto Mono", monospace;
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* ===== CANVAS INFO ===== */
+.canvas-info {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem;
+  background-color: #DBEAFE;
+  border: 1px solid #93C5FD;
+  border-radius: 8px;
+  max-width: 400px;
+}
+
+.canvas-info p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #1E40AF;
+  font-weight: 500;
+  text-align: center;
+}
+
+/* ===== EMPTY CANVAS ===== */
+.canvas-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 4rem 2rem;
+  color: #9CA3AF;
+}
+
+.canvas-empty-icon {
+  font-size: 4rem;
+  opacity: 0.3;
+}
+
+.canvas-empty-text {
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+
+/* ===== ZOOM SCALE ===== */
+@media (max-width: 1400px) {
+  .canvas-wrapper {
+    max-width: calc(100vw - 100px);
+  }
+}
+
+/* ===== SCROLLBAR ===== */
+.canvas::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.canvas::-webkit-scrollbar-track {
+  background: #F3F4F6;
+}
+
+.canvas::-webkit-scrollbar-thumb {
+  background: #D1D5DB;
+  border-radius: 5px;
+}
+
+.canvas::-webkit-scrollbar-thumb:hover {
+  background: #9CA3AF;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+  .canvas {
+    padding: 1rem;
+  }
+
+  .canvas-wrapper {
+    max-width: 100%;
+    border-radius: 6px;
+  }
+
+  .canvas-info {
+    max-width: 100%;
+    font-size: 0.85rem;
+  }
+
+  .cell-label {
+    font-size: 0.75rem !important;
+  }
+}
+
+/* ===== ANIMATIONS ===== */
+@keyframes cellPlace {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.cell-new {
+  animation: cellPlace 0.3s ease;
+}
+
+/* ===== GRID SNAPPING VISUAL FEEDBACK ===== */
+.canvas-svg.snapping {
+  background-image: 
+    linear-gradient(
+      rgba(59, 130, 246, 0.1) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(59, 130, 246, 0.1) 1px,
+      transparent 1px
+    );
+  background-size: var(--grid-size) var(--grid-size);
+}
+
+/* ===== SELECTION & MULTI-SELECT ===== */
+.cell.selected {
+  stroke-width: 3 !important;
+  stroke: #0F172A !important;
+  filter: drop-shadow(0 0 0 3px rgba(59, 130, 246, 0.3));
+}
+
+.cell.multi-selected {
+  filter: drop-shadow(0 0 0 2px rgba(59, 130, 246, 0.5));
+}
+
+/* ===== ANIMATION FÜR PLACING ===== */
+@keyframes placingCursor {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.canvas-svg.is-placing {
+  animation: placingCursor 0.6s ease infinite;
+}

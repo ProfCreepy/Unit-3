@@ -1,43 +1,44 @@
-import { X, Plus } from 'lucide-react';
+import { X } from 'lucide-react';
+import { useProject } from '../hooks/useProject';
 import './sidebar.css';
 
 export default function Extensions() {
-  const extensions = [
-    { id: 1, name: 'Color Extractor', enabled: true, description: 'Extract colors from images' },
-    { id: 2, name: 'Grid Analyzer', enabled: true, description: 'Analyze grid patterns' },
-    { id: 3, name: 'Export Tools', enabled: false, description: 'Export to various formats' },
-  ];
+  const { activeSidebar, closeSidebar, extensions, enableExtension, disableExtension } = useProject();
+
+  if (activeSidebar !== 'extensions') return null;
 
   return (
     <aside className='sidebar extensions-sidebar'>
       <div className='sidebar-header'>
         <h2>Extensions</h2>
-        <button className='close-button' aria-label="close extensions">
+        <button className='close-button' onClick={closeSidebar}>
           <X size={20} />
         </button>
       </div>
-      
+
       <div className='sidebar-content'>
-        <button className='add-extension-btn'>
-          <Plus size={16} />
-          <span>Add Extension</span>
-        </button>
-        
-        <div className='extensions-list'>
-          {extensions.map(ext => (
-            <div key={ext.id} className='extension-item'>
-              <div className='extension-info'>
-                <h3>{ext.name}</h3>
-                <p>{ext.description}</p>
+        {extensions.length > 0 ? (
+          <div className='extensions-list'>
+            {extensions.map(ext => (
+              <div key={ext.name} className='extension-item'>
+                <div>
+                  <h4>{ext.name}</h4>
+                  <p>{ext.description}</p>
+                </div>
+                <label className='toggle-switch'>
+                  <input
+                    type='checkbox'
+                    checked={ext.enabled}
+                    onChange={() => (ext.enabled ? disableExtension(ext.name) : enableExtension(ext.name))}
+                  />
+                  <span className='toggle-slider'></span>
+                </label>
               </div>
-              <input 
-                type='checkbox' 
-                defaultChecked={ext.enabled}
-                className='extension-toggle'
-              />
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <p>Keine Extensions installiert</p>
+        )}
       </div>
     </aside>
   );
