@@ -23,6 +23,7 @@ export default function Header() {
         className='icon-button'
         onClick={() => toggleSidebar('settings')}
         style={{ color: getIconColor('settings') }}
+        title='Settings'
       >
         <Settings2Icon size={40} />
       </button>
@@ -30,6 +31,7 @@ export default function Header() {
         className='icon-button'
         onClick={() => toggleSidebar('extensions')}
         style={{ color: getIconColor('extensions') }}
+        title='Extensions'
       >
         <BlocksIcon size={40} />
       </button>

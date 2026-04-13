@@ -3,7 +3,7 @@ import { useProject } from '../hooks/useProject';
 import './sidebar.css';
 
 export default function Extensions() {
-  const { activeSidebar, closeSidebar, extensions, enableExtension, disableExtension } = useProject();
+  const { activeSidebar, closeSidebar } = useProject();
 
   if (activeSidebar !== 'extensions') return null;
 
@@ -17,28 +17,15 @@ export default function Extensions() {
       </div>
 
       <div className='sidebar-content'>
-        {extensions.length > 0 ? (
-          <div className='extensions-list'>
-            {extensions.map(ext => (
-              <div key={ext.name} className='extension-item'>
-                <div>
-                  <h4>{ext.name}</h4>
-                  <p>{ext.description}</p>
-                </div>
-                <label className='toggle-switch'>
-                  <input
-                    type='checkbox'
-                    checked={ext.enabled}
-                    onChange={() => (ext.enabled ? disableExtension(ext.name) : enableExtension(ext.name))}
-                  />
-                  <span className='toggle-slider'></span>
-                </label>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p>Keine Extensions installiert</p>
-        )}
+        <div className='settings-section'>
+          <h3 className='section-title'>Coming Soon</h3>
+          <p style={{ color: '#6B7280', fontSize: '0.9rem' }}>
+            Extensions werden hier bald hinzugefügt.
+          </p>
+          <p style={{ color: '#9CA3AF', fontSize: '0.85rem' }}>
+            💡 Später können User ihre eigenen Extensions installieren.
+          </p>
+        </div>
       </div>
     </aside>
   );
