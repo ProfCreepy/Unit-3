@@ -1,7 +1,12 @@
 // Kein React-Import — reine Logik!
 import type { Grid, CellType } from "../simulation/types";
 import { key } from "../simulation/grid";
-import { getCellAt, clientToCanvas, type Camera } from "./coordinates";
+import {
+  getCellAt,
+  clientToCanvas,
+  zoomAtPoint,
+  type Camera,
+} from "./coordinates";
 
 export type Tool = CellType | "delete";
 
@@ -11,7 +16,7 @@ export function applyTool(
   cx: number,
   cy: number,
   tool: Tool,
-  isDrag = false,
+  isDrag = false
 ): boolean {
   const k = key(cx, cy);
   if (tool === "delete") {
@@ -44,7 +49,7 @@ function bresenham(
   x0: number,
   y0: number,
   x1: number,
-  y1: number,
+  y1: number
 ): [number, number][] {
   const cells: [number, number][] = [];
   const dx = Math.abs(x1 - x0),
@@ -134,12 +139,20 @@ export class PointerController {
   private pinchDist = 0;
   private pinchMidSx = 0;
   private pinchMidSy = 0;
+  /**
+   * Verhindert Tap-Auslösung beim Loslassen nach einem Pinch.
+   * Problem: resetSinglePointerState() löscht isPanning/isDragging/isDeleting —
+   * danach sieht jedes pointerUp wie ein unberührter Tap aus, auch nach Pinch-Zoom.
+   * Dieses Flag liegt außerhalb von resetSinglePointerState() und wird erst
+   * gelöscht wenn alle Pointer weg sind.
+   */
+  private wasPinching = false;
 
   constructor(
     canvas: HTMLCanvasElement,
     callbacks: PointerCallbacks,
     getCamera: () => Camera,
-    getTool: () => Tool,
+    getTool: () => Tool
   ) {
     this.canvas = canvas;
     this.cb = callbacks;
@@ -229,12 +242,12 @@ export class PointerController {
     const [a, b] = [...this.pointers.values()];
     this.pinchDist = Math.hypot(
       b.lastClientX - a.lastClientX,
-      b.lastClientY - a.lastClientY,
+      b.lastClientY - a.lastClientY
     );
     const [mx, my] = clientToCanvas(
       (a.lastClientX + b.lastClientX) / 2,
       (a.lastClientY + b.lastClientY) / 2,
-      this.canvas,
+      this.canvas
     );
     this.pinchMidSx = mx;
     this.pinchMidSy = my;
@@ -245,12 +258,12 @@ export class PointerController {
     const [a, b] = [...this.pointers.values()];
     const newDist = Math.hypot(
       b.lastClientX - a.lastClientX,
-      b.lastClientY - a.lastClientY,
+      b.lastClientY - a.lastClientY
     );
     const [newMx, newMy] = clientToCanvas(
       (a.lastClientX + b.lastClientX) / 2,
       (a.lastClientY + b.lastClientY) / 2,
-      this.canvas,
+      this.canvas
     );
     if (this.pinchDist > 0)
       this.cb.onZoom(newDist / this.pinchDist, newMx, newMy);
@@ -281,6 +294,7 @@ export class PointerController {
 
     if (this.pointers.size === 2) {
       this.resetSinglePointerState();
+      this.wasPinching = true;
       this.startPinch();
       return;
     }
@@ -350,7 +364,7 @@ export class PointerController {
     // Tap-vs-Drag-Schwelle (gerätespezifisch)
     const dist = Math.hypot(
       e.clientX - p.startClientX,
-      e.clientY - p.startClientY,
+      e.clientY - p.startClientY
     );
     if (dist >= this.tapThreshold(p.type)) {
       this.cancelLongPress();
@@ -374,21 +388,31 @@ export class PointerController {
     this.pointers.delete(e.pointerId);
 
     if (this.pointers.size <= 1) {
-      const wasTap = !this.isPanning && !this.isDragging && !this.isDeleting;
+      const wasTap =
+        !this.isPanning &&
+        !this.isDragging &&
+        !this.isDeleting &&
+        !this.wasPinching;
       if (wasTap && this.pointers.size === 0) {
         const [cx, cy] = this.cellAt(e.clientX, e.clientY);
         if (e.pointerType === "mouse" && e.button === 2)
           this.cb.onDelete(cx, cy);
         else this.cb.onPlace(cx, cy, false);
       }
-      if (this.pointers.size === 0) this.resetSinglePointerState();
+      if (this.pointers.size === 0) {
+        this.wasPinching = false;
+        this.resetSinglePointerState();
+      }
     }
   }
 
   pointerCancel(e: PointerEvent) {
     this.pointers.delete(e.pointerId);
     this.cancelLongPress();
-    if (this.pointers.size === 0) this.resetSinglePointerState();
+    if (this.pointers.size === 0) {
+      this.wasPinching = false;
+      this.resetSinglePointerState();
+    }
   }
 
   wheel(e: WheelEvent) {
