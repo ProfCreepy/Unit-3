@@ -221,7 +221,13 @@ export class PointerController {
     let [cx, cy] = this.cellAt(clientX, clientY);
 
     // Achslock — NUR beim Platzieren, nicht beim Löschen
-    if (!this.isDeleting && this.anchorCell !== null) {
+    // isDeleting-Flag deckt nur Rechtsklick-Drag (PC) und Long-Press-Drag
+    // (Touch) ab. Löschen per Toolbar-Werkzeug + normalem Drag läuft über
+    // den generischen isDragging-Pfad und setzt isDeleting nie — deshalb
+    // zusätzlich getTool() prüfen, sonst wird auf Mobile beim Löschen
+    // trotzdem gestraightet.
+    const deleting = this.isDeleting || this.getTool() === "delete";
+    if (!deleting && this.anchorCell !== null) {
       if (this.dragAxis === null) {
         const adx = Math.abs(cx - this.anchorCell[0]);
         const ady = Math.abs(cy - this.anchorCell[1]);
