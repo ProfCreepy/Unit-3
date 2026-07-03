@@ -194,6 +194,23 @@ export class PointerController {
     this.cancelLongPress();
   }
 
+  /**
+   * Verankert den verbleibenden Pointer neu, wenn von 2 auf 1 Finger
+   * reduziert wird (Pinch-Ende).
+   * Ohne dies bleibt startClientX/Y auf der Position von VOR dem Pinch
+   * stehen. pointerMove berechnet die Tap/Drag-Schwelle dann gegen diese
+   * veraltete Position — die Pinch-Bewegung selbst überschreitet die
+   * Schwelle sofort, wodurch fälschlich ein Drag beginnt und im selben
+   * Move-Event eine Zelle an der alten Ankerposition platziert wird.
+   * Das war der Mobile-Bug: Zoomen platzierte Zellen.
+   */
+  private reanchorRemainingPointer() {
+    if (this.pointers.size !== 1) return;
+    const remaining = [...this.pointers.values()][0];
+    remaining.startClientX = remaining.lastClientX;
+    remaining.startClientY = remaining.lastClientY;
+  }
+
   // ─── Drag-Platzieren: Bresenham + Achslock ──────────────────────────
 
   /**
@@ -386,6 +403,7 @@ export class PointerController {
     if (!p) return;
     this.cancelLongPress();
     this.pointers.delete(e.pointerId);
+    this.reanchorRemainingPointer();
 
     if (this.pointers.size <= 1) {
       const wasTap =
@@ -409,6 +427,7 @@ export class PointerController {
   pointerCancel(e: PointerEvent) {
     this.pointers.delete(e.pointerId);
     this.cancelLongPress();
+    this.reanchorRemainingPointer();
     if (this.pointers.size === 0) {
       this.wasPinching = false;
       this.resetSinglePointerState();
