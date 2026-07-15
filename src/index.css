@@ -194,4 +194,8 @@ body { overflow: hidden; }
   .reset-btn  { display: none !important; }
   .hint-text  { display: none; }
   .logo-text  { display: none; }
+
+  /* Undo/Redo: auf Mobile nur Icons, kein Textlabel (Platzgründe) */
+  .undo-btn .btn-label,
+  .redo-btn .btn-label { display: none; }
 }

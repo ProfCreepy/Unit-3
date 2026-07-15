@@ -115,6 +115,10 @@ export interface PointerCallbacks {
   onPan: (dx: number, dy: number) => void;
   /** Faktor + Fokuspunkt in Canvas-Pixel — Empfänger mutiert Camera direkt */
   onZoom: (factor: number, focalSx: number, focalSy: number) => void;
+  /** Wird beim Übergang !isDragging → isDragging aufgerufen (einmal pro Drag) */
+  onDragStart?: () => void;
+  /** Wird bei pointerUp/pointerCancel aufgerufen, wenn zuvor gedraggt wurde */
+  onDragEnd?: () => void;
 }
 
 // ─── PointerController ────────────────────────────────────────────────
@@ -337,6 +341,7 @@ export class PointerController {
       this.isDragging = true;
       this.anchorCell = [cx, cy];
       this.lastCellPos = [cx, cy];
+      this.cb.onDragStart?.();
       this.cb.onDelete(cx, cy);
       return;
     }
@@ -351,6 +356,7 @@ export class PointerController {
           this.isDragging = true;
           this.anchorCell = [cx, cy];
           this.lastCellPos = [cx, cy];
+          this.cb.onDragStart?.();
           this.cb.onDelete(cx, cy);
         }
       }, LONG_PRESS_MS);
@@ -397,6 +403,7 @@ export class PointerController {
         const [cx, cy] = this.cellAt(p.startClientX, p.startClientY);
         this.anchorCell = [cx, cy];
         this.lastCellPos = [cx, cy]; // Startpunkt für Bresenham
+        this.cb.onDragStart?.();
         // Ankerzelle wie Tap behandeln (Toggle erlaubt)
         if (this.getTool() !== "delete") this.cb.onPlace(cx, cy, false);
       }
@@ -424,6 +431,7 @@ export class PointerController {
         else this.cb.onPlace(cx, cy, false);
       }
       if (this.pointers.size === 0) {
+        if (this.isDragging) this.cb.onDragEnd?.();
         this.wasPinching = false;
         this.resetSinglePointerState();
       }
@@ -435,6 +443,7 @@ export class PointerController {
     this.cancelLongPress();
     this.reanchorRemainingPointer();
     if (this.pointers.size === 0) {
+      if (this.isDragging) this.cb.onDragEnd?.();
       this.wasPinching = false;
       this.resetSinglePointerState();
     }

@@ -15,6 +15,8 @@ export function useKeyboardShortcuts() {
   const step       = useGridStore(s => s.step);
   const running    = useGridStore(s => s.isRunning);
   const setRunning = useGridStore(s => s.setRunning);
+  const undo       = useGridStore(s => s.undo);
+  const redo       = useGridStore(s => s.redo);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -32,8 +34,24 @@ export function useKeyboardShortcuts() {
         e.preventDefault();
         if (!running) step();
       }
+
+      // Undo/Redo
+      // e.key.toLowerCase() statt direktem Vergleich mit 'z'/'y': bei
+      // gedrückter Shift-Taste liefert der Browser i. d. R. den Großbuchstaben
+      // ('Z' statt 'z') — ein reiner === 'z'-Vergleich würde Ctrl+Shift+Z
+      // dadurch nie erkennen.
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        undo();
+      } else if (
+        (e.ctrlKey || e.metaKey) &&
+        (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))
+      ) {
+        e.preventDefault();
+        redo();
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [running, setTool, setRunning, step]);
+  }, [running, setTool, setRunning, step, undo, redo]);
 }
