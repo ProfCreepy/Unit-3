@@ -12,6 +12,10 @@ export function SimBar() {
   const hz         = useGridStore(s => s.hz);
   const setHz      = useGridStore(s => s.setHz);
   const clear      = useGridStore(s => s.clear);
+  const undo       = useGridStore(s => s.undo);
+  const redo       = useGridStore(s => s.redo);
+  const canUndo    = useGridStore(s => s.undoStack.length > 0);
+  const canRedo    = useGridStore(s => s.redoStack.length > 0);
 
   return (
     <div style={{
@@ -21,6 +25,42 @@ export function SimBar() {
       padding:     '0 8px',
       flexShrink:  0,
     }}>
+      {/* Undo / Redo */}
+      <button
+        className="sim-btn undo-btn"
+        onClick={undo}
+        disabled={!canUndo}
+        title="Rückgängig [Strg+Z]"
+        style={{
+          background:  'transparent',
+          color:       canUndo ? 'var(--sim-blue)' : 'var(--border-ui)',
+          borderColor: canUndo ? 'var(--sim-blue)' : 'var(--border-ui)',
+        }}
+      >
+        ↩<span className="btn-label"> Undo</span>
+      </button>
+      <button
+        className="sim-btn redo-btn"
+        onClick={redo}
+        disabled={!canRedo}
+        title="Wiederherstellen [Strg+Y]"
+        style={{
+          background:  'transparent',
+          color:       canRedo ? 'var(--sim-blue)' : 'var(--border-ui)',
+          borderColor: canRedo ? 'var(--sim-blue)' : 'var(--border-ui)',
+        }}
+      >
+        ↪<span className="btn-label"> Redo</span>
+      </button>
+
+      {/* Trenner */}
+      <div style={{
+        width:      1,
+        alignSelf:  'stretch',
+        margin:     '8px 2px',
+        background: 'var(--border-ui)',
+      }} />
+
       {/* Schritt */}
       <button
         className="sim-btn"

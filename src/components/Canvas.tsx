@@ -26,6 +26,9 @@ export function Canvas() {
   const setCell      = useGridStore(s => s.setCell);
   const delCell      = useGridStore(s => s.deleteCell);
   const toggleForced = useGridStore(s => s.toggleForced);
+  const pushUndo     = useGridStore(s => s.pushUndo);
+  const beginBatch   = useGridStore(s => s.beginBatch);
+  const endBatch     = useGridStore(s => s.endBatch);
   const gridRef      = useRef(grid);
   gridRef.current    = grid; // immer aktuell für Event-Handler
 
@@ -114,6 +117,20 @@ export function Canvas() {
         onZoom: (factor, focalSx, focalSy) => {
           zoomAtPoint(cameraRef.current, factor, focalSx, focalSy);
           dirtyRef.current = true;
+        },
+
+        // Ein ganzer Drag (Bresenham über viele Zellen) soll EIN
+        // Undo-Schritt sein, nicht einer pro Zelle. Deshalb hier einmalig
+        // vor dem ersten Platzieren/Löschen pushUndo(), danach beginBatch()
+        // — setCell/deleteCell/toggleForced überspringen pushUndo dann bis
+        // endBatch() beim Loslassen.
+        onDragStart: () => {
+          pushUndo();
+          beginBatch();
+        },
+
+        onDragEnd: () => {
+          endBatch();
         },
       },
       () => cameraRef.current,
