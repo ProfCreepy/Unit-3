@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { forwardRef, useRef, useEffect, useCallback, useImperativeHandle } from 'react';
 import { useGridStore }      from '../store/gridStore';
 import { useUIStore }        from '../store/uiStore';
 import { renderFrame }       from '../canvas/renderer';
@@ -10,7 +10,17 @@ import type { Tool }         from '../canvas/input';
 // Kamera-Startwert — lebt als Ref, kein Zustand, keine React-Re-Renders
 const INITIAL_CAMERA: Camera = { x: -15, y: -9, zoom: 36 };
 
-export function Canvas() {
+/**
+ * Von außen (App.tsx / SimBar) erreichbare Kamera-Schnittstelle.
+ * Nötig, weil die Kamera bewusst NICHT im Store lebt (siehe cameraRef unten) —
+ * Save/Load braucht trotzdem Lese-/Schreibzugriff für Schritt 4.
+ */
+export interface CanvasHandle {
+  getCameraSnapshot: () => Camera;
+  setCameraSnapshot: (cam: Camera) => void;
+}
+
+export const Canvas = forwardRef<CanvasHandle, object>((_props, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ctrlRef   = useRef<PointerController | null>(null);
 
@@ -20,6 +30,15 @@ export function Canvas() {
   const cameraRef = useRef<Camera>({ ...INITIAL_CAMERA });
   const dirtyRef  = useRef(true);
   const rafRef    = useRef(0);
+
+  // ── Nach außen exponierte Kamera-Schnittstelle (Save/Load) ───────────
+  useImperativeHandle(ref, () => ({
+    getCameraSnapshot: () => ({ ...cameraRef.current }),
+    setCameraSnapshot: (cam: Camera) => {
+      cameraRef.current = { ...cam };
+      dirtyRef.current  = true;
+    },
+  }), []);
 
   // ── Grid aus Zustand (nur für Platzieren/Löschen nötig) ───────────────
   const grid         = useGridStore(s => s.grid);
@@ -164,4 +183,6 @@ export function Canvas() {
       onContextMenu={e => e.preventDefault()}
     />
   );
-}
+});
+
+Canvas.displayName = 'Canvas';

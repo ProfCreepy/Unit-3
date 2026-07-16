@@ -198,4 +198,8 @@ body { overflow: hidden; }
   /* Undo/Redo: auf Mobile nur Icons, kein Textlabel (Platzgründe) */
   .undo-btn .btn-label,
   .redo-btn .btn-label { display: none; }
+
+  /* Speichern/Öffnen: auf Mobile ebenfalls nur Icons, kein Textlabel */
+  .save-btn .btn-label,
+  .load-btn .btn-label { display: none; }
 }

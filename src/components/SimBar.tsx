@@ -1,11 +1,18 @@
 import { useGridStore } from '../store/gridStore';
 
+interface SimBarProps {
+  /** Speichert Grid + Kamera als .u3-Datei. Wird von App.tsx implementiert. */
+  onSave: () => void;
+  /** Öffnet Datei-Dialog und lädt Grid + Kamera. Wird von App.tsx implementiert. */
+  onLoad: () => void;
+}
+
 /**
- * Simulations-Steuerung: Play/Pause, Schritt, Hz-Slider, Reset.
+ * Simulations-Steuerung: Play/Pause, Schritt, Hz-Slider, Reset, Save/Load.
  * Auf Mobile (< 600px) blendet CSS .hz-control und .reset-btn aus —
- * kein JS-Prop nötig.
+ * Save/Load bleiben sichtbar, aber nur als Icon (.save-btn/.load-btn .btn-label).
  */
-export function SimBar() {
+export function SimBar({ onSave, onLoad }: SimBarProps) {
   const step       = useGridStore(s => s.step);
   const running    = useGridStore(s => s.isRunning);
   const setRunning = useGridStore(s => s.setRunning);
@@ -120,6 +127,40 @@ export function SimBar() {
         }}
       >
         🗑 Reset
+      </button>
+
+      {/* Trenner */}
+      <div style={{
+        width:      1,
+        alignSelf:  'stretch',
+        margin:     '8px 2px',
+        background: 'var(--border-ui)',
+      }} />
+
+      {/* Speichern / Öffnen */}
+      <button
+        className="sim-btn save-btn"
+        onClick={onSave}
+        title="Speichern (.u3)"
+        style={{
+          background:  'transparent',
+          color:       'var(--sim-blue)',
+          borderColor: 'var(--sim-blue)',
+        }}
+      >
+        💾<span className="btn-label"> Speichern</span>
+      </button>
+      <button
+        className="sim-btn load-btn"
+        onClick={onLoad}
+        title="Öffnen (.u3/.json)"
+        style={{
+          background:  'transparent',
+          color:       'var(--sim-blue)',
+          borderColor: 'var(--sim-blue)',
+        }}
+      >
+        📂<span className="btn-label"> Öffnen</span>
       </button>
     </div>
   );
