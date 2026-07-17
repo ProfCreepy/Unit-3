@@ -25,12 +25,13 @@ export function SimBar({ onSave, onLoad }: SimBarProps) {
   const canRedo    = useGridStore(s => s.redoStack.length > 0);
 
   return (
-    <div style={{
+    <div className="scroll-row" style={{
       display:     'flex',
       alignItems:  'center',
       gap:         6,
       padding:     '0 8px',
       flexShrink:  0,
+      minWidth:    0,
     }}>
       {/* Undo / Redo */}
       <button
@@ -42,6 +43,7 @@ export function SimBar({ onSave, onLoad }: SimBarProps) {
           background:  'transparent',
           color:       canUndo ? 'var(--sim-blue)' : 'var(--border-ui)',
           borderColor: canUndo ? 'var(--sim-blue)' : 'var(--border-ui)',
+          flexShrink:  0,
         }}
       >
         ↩<span className="btn-label"> Undo</span>
@@ -55,6 +57,7 @@ export function SimBar({ onSave, onLoad }: SimBarProps) {
           background:  'transparent',
           color:       canRedo ? 'var(--sim-blue)' : 'var(--border-ui)',
           borderColor: canRedo ? 'var(--sim-blue)' : 'var(--border-ui)',
+          flexShrink:  0,
         }}
       >
         ↪<span className="btn-label"> Redo</span>
@@ -66,6 +69,7 @@ export function SimBar({ onSave, onLoad }: SimBarProps) {
         alignSelf:  'stretch',
         margin:     '8px 2px',
         background: 'var(--border-ui)',
+        flexShrink: 0,
       }} />
 
       {/* Schritt */}
@@ -77,10 +81,11 @@ export function SimBar({ onSave, onLoad }: SimBarProps) {
           background:  'transparent',
           color:       running ? 'var(--border-ui)' : 'var(--sim-blue)',
           borderColor: running ? 'var(--border-ui)' : 'var(--sim-blue)',
+          flexShrink:  0,
         }}
       >
         ⏭<span className="shortcut"> [.]</span>
-        <span> Schritt</span>
+        <span className="btn-label"> Schritt</span>
       </button>
 
       {/* Play / Pause */}
@@ -92,6 +97,7 @@ export function SimBar({ onSave, onLoad }: SimBarProps) {
           color:       '#000',
           fontWeight:  'bold',
           border:      'none',
+          flexShrink:  0,
         }}
       >
         {running ? '⏸ Pause' : '▶ Play'}
@@ -124,6 +130,7 @@ export function SimBar({ onSave, onLoad }: SimBarProps) {
           background:  'transparent',
           color:       'var(--cell-delete)',
           borderColor: '#662222',
+          flexShrink:  0,
         }}
       >
         🗑 Reset
@@ -135,6 +142,7 @@ export function SimBar({ onSave, onLoad }: SimBarProps) {
         alignSelf:  'stretch',
         margin:     '8px 2px',
         background: 'var(--border-ui)',
+        flexShrink: 0,
       }} />
 
       {/* Speichern / Öffnen */}
@@ -146,6 +154,7 @@ export function SimBar({ onSave, onLoad }: SimBarProps) {
           background:  'transparent',
           color:       'var(--sim-blue)',
           borderColor: 'var(--sim-blue)',
+          flexShrink:  0,
         }}
       >
         💾<span className="btn-label"> Speichern</span>
@@ -158,6 +167,7 @@ export function SimBar({ onSave, onLoad }: SimBarProps) {
           background:  'transparent',
           color:       'var(--sim-blue)',
           borderColor: 'var(--sim-blue)',
+          flexShrink:  0,
         }}
       >
         📂<span className="btn-label"> Öffnen</span>

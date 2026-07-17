@@ -5,7 +5,15 @@
 /* ── Reset ──────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { overflow: hidden; }
-#root { height: 100vh; }
+/*
+  100vh zählt auf Mobile (Safari/Chrome) die (ggf. eingeblendete) Adressleiste
+  mit — die tatsächlich sichtbare Höhe ist kleiner. Das drückte den untersten
+  Grid-Bereich (auf Mobile: die Toolbar) unter den sichtbaren Ausschnitt, ohne
+  Scroll-Möglichkeit (überall overflow:hidden) → abgeschnitten.
+  100dvh berücksichtigt die tatsächlich sichtbare Höhe. Fallback bleibt 100vh
+  für Browser ohne dvh-Unterstützung (Cascade: unbekannte Werte werden ignoriert).
+*/
+#root { height: 100vh; height: 100dvh; }
 
 /* ── Design Tokens ──────────────────────────────────────────── */
 :root {
@@ -44,15 +52,36 @@ body { overflow: hidden; }
     "canvas"
     "status";
   height: 100vh;
+  height: 100dvh; /* s. Kommentar bei #root */
   background: var(--bg-app);
   font-family: var(--font);
   user-select: none;
   overflow: hidden;
+  /*
+    Aussparung für Notch/Dynamic Island (oben) und Home-Indicator (unten)
+    auf iPhones — auf Geräten ohne Notch/Home-Indicator (iPad, Desktop)
+    lösen die env()-Werte zu 0px auf, also folgenlos.
+    Braucht viewport-fit=cover in index.html, sonst liefert env() immer 0.
+  */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+           env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
 .top-bar     { grid-area: toolbar; }
 .canvas-area { grid-area: canvas;  }
 .status-bar  { grid-area: status;  }
+
+/* ── Scrollbare Button-Reihen (Toolbar/SimBar) ──────────────────
+   Sicherheitsnetz gegen horizontales Abschneiden: falls eine Button-Reihe
+   auf schmalen Screens breiter als der verfügbare Platz wird, kann man sie
+   statt abgeschnitten zu bekommen zur Seite scrollen. Scrollbar unsichtbar
+   für den optischen Eindruck einer festen Toolbar. */
+.scroll-row {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;   /* Firefox */
+}
+.scroll-row::-webkit-scrollbar { display: none; } /* Chrome/Safari */
 
 /* ── top-bar ────────────────────────────────────────────────── */
 .top-bar {
@@ -196,10 +225,12 @@ body { overflow: hidden; }
   .logo-text  { display: none; }
 
   /* Undo/Redo: auf Mobile nur Icons, kein Textlabel (Platzgründe) */
-  .undo-btn .btn-label,
-  .redo-btn .btn-label { display: none; }
+  /* Undo/Redo/Save/Load/Schritt: auf Mobile nur Icons, kein Textlabel
+     (generisch für alle .sim-btn — deckt auch künftig neue Buttons ab) */
+  .sim-btn .btn-label { display: none; }
 
-  /* Speichern/Öffnen: auf Mobile ebenfalls nur Icons, kein Textlabel */
-  .save-btn .btn-label,
-  .load-btn .btn-label { display: none; }
+  /* Werkzeug-Buttons (Kabel/Umkehrer/Verzögerer/Löschen): auf Mobile
+     ebenfalls nur Icon — volle Labels waren der Haupt-Übeltäter für
+     horizontales Abschneiden auf schmalen Screens */
+  .tool-btn .btn-label { display: none; }
 }
