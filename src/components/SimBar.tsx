@@ -30,7 +30,6 @@ export function SimBar({ onSave, onLoad }: SimBarProps) {
       alignItems:  'center',
       gap:         6,
       padding:     '0 8px',
-      flexShrink:  0,
       minWidth:    0,
     }}>
       {/* Undo / Redo */}
