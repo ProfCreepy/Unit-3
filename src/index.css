@@ -47,6 +47,7 @@ body { overflow: hidden; }
 .app-layout {
   display: grid;
   grid-template-rows: auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
     "toolbar"
     "canvas"
@@ -183,7 +184,7 @@ body { overflow: hidden; }
   color: var(--text-dim);
   min-height: 24px;
 }
-.hint-text { flex: 1; }
+.hint-text { flex: 1 1 auto; }
 
 /* ── Loop-Error-Banner ──────────────────────────────────────── */
 .loop-error {
@@ -195,6 +196,28 @@ body { overflow: hidden; }
   border-top: 1px solid #880000;
   font-size: 11px;
   color: #ff6666;
+}
+
+/* ── Kompakter Button-Modus (< 1260px) ──────────────────────────
+   Nur-Icon-Darstellung + Ausblenden von Hz-Slider/Reset/Hilfetext,
+   deutlich vor dem strukturellen Mobile-Breakpoint — verhindert,
+   dass Toolbar/SimBar bei mittleren Breiten (Laptop/kleines Tablet
+   im Querformat) überlaufen, bevor der Nur-Icon-Modus greift. */
+@media (max-width: 1260px) {
+  /* Hz-Slider, Reset und Hilfetext ausblenden */
+  .hz-control { display: none !important; }
+  .reset-btn  { display: none !important; }
+  .hint-text  { display: none; }
+  .logo-text  { display: none; }
+
+  /* Undo/Redo/Save/Load/Schritt: nur Icons, kein Textlabel
+     (generisch für alle .sim-btn — deckt auch künftig neue Buttons ab) */
+  .sim-btn .btn-label { display: none; }
+
+  /* Werkzeug-Buttons (Kabel/Umkehrer/Verzögerer/Löschen): ebenfalls
+     nur Icon — volle Labels waren der Haupt-Übeltäter für
+     horizontales Abschneiden auf schmaleren Screens */
+  .tool-btn .btn-label { display: none; }
 }
 
 /* ── Mobile-Layout (< 600px) ────────────────────────────────── */
@@ -217,20 +240,4 @@ body { overflow: hidden; }
 
   /* Schritt-Overlay einblenden */
   .step-overlay { display: block; }
-
-  /* Hz-Slider, Reset und Hilfetext auf Mobile ausblenden */
-  .hz-control { display: none !important; }
-  .reset-btn  { display: none !important; }
-  .hint-text  { display: none; }
-  .logo-text  { display: none; }
-
-  /* Undo/Redo: auf Mobile nur Icons, kein Textlabel (Platzgründe) */
-  /* Undo/Redo/Save/Load/Schritt: auf Mobile nur Icons, kein Textlabel
-     (generisch für alle .sim-btn — deckt auch künftig neue Buttons ab) */
-  .sim-btn .btn-label { display: none; }
-
-  /* Werkzeug-Buttons (Kabel/Umkehrer/Verzögerer/Löschen): auf Mobile
-     ebenfalls nur Icon — volle Labels waren der Haupt-Übeltäter für
-     horizontales Abschneiden auf schmalen Screens */
-  .tool-btn .btn-label { display: none; }
 }
