@@ -111,6 +111,7 @@ export function SimBar({ onSave, onLoad }: SimBarProps) {
         fontSize:    11,
         color:       'var(--text-muted)',
         whiteSpace:  'nowrap',
+        flexShrink:  0,
       }}>
         <input
           type="range"
