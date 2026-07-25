@@ -30,6 +30,7 @@ export function SimBar({ onSave, onLoad }: SimBarProps) {
       alignItems:  'center',
       gap:         6,
       padding:     '0 8px',
+      flexShrink:  0,
       minWidth:    0,
     }}>
       {/* Undo / Redo */}
@@ -133,7 +134,7 @@ export function SimBar({ onSave, onLoad }: SimBarProps) {
           flexShrink:  0,
         }}
       >
-        🗑 Reset
+        🗑<span className="btn-label"> Reset</span>
       </button>
 
       {/* Trenner */}

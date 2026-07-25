@@ -18,14 +18,15 @@ export function Toolbar() {
   const setTool = useUIStore(s => s.setTool);
 
   return (
-    <div className="scroll-row" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 8px', flex: '1 1 auto', minWidth: 0 }}>
+    <div className="scroll-row" style={{
+      display: 'flex', alignItems: 'center', gap: 4, padding: '0 8px', flex: 1, minWidth: 0,
+    }}>
       <span style={{
         color:       'var(--accent)',
         fontWeight:  'bold',
         fontSize:    14,
         marginRight: 4,
         whiteSpace:  'nowrap',
-        flexShrink:  0,
       }}>
         ▣<span className="logo-text"> Unit-3</span>
       </span>
