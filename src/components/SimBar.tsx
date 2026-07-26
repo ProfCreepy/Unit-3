@@ -9,8 +9,11 @@ interface SimBarProps {
 
 /**
  * Simulations-Steuerung: Play/Pause, Schritt, Hz-Slider, Reset, Save/Load.
- * Auf Mobile (< 600px) blendet CSS .hz-control und .reset-btn aus —
- * Save/Load bleiben sichtbar, aber nur als Icon (.save-btn/.load-btn .btn-label).
+ * Ab ≤1260px (Tablet-Kompaktmodus in index.css) blendet CSS .hz-control
+ * komplett aus; Reset/Undo/Redo/Schritt/Save/Load verlieren nur ihr
+ * Textlabel (.btn-label) und bleiben als Icon sichtbar. Der Wrapper hier
+ * hat bewusst KEIN flexShrink:0 — er soll sich mit der Toolbar (App.tsx)
+ * den verfügbaren Platz fair teilen, statt sie zusammenzudrücken.
  */
 export function SimBar({ onSave, onLoad }: SimBarProps) {
   const step       = useGridStore(s => s.step);
@@ -133,7 +136,7 @@ export function SimBar({ onSave, onLoad }: SimBarProps) {
           flexShrink:  0,
         }}
       >
-        🗑 Reset
+        🗑<span className="btn-label"> Reset</span>
       </button>
 
       {/* Trenner */}
