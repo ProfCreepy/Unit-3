@@ -47,6 +47,7 @@ body { overflow: hidden; }
 .app-layout {
   display: grid;
   grid-template-rows: auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
     "toolbar"
     "canvas"
@@ -197,6 +198,20 @@ body { overflow: hidden; }
   color: #ff6666;
 }
 
+/* ── Tablet-Kompaktmodus (≤ 1260px) ──────────────────────────── */
+/* Verhindert, dass Toolbar + SimBar auf iPad-Breiten (768–1194px)  */
+/* und schmalen Desktop-Fenstern die Top-Bar sprengen: Hz-Regler    */
+/* verschwindet, Reset/Tool-/Sim-Buttons werden Icon-only.          */
+/* (Reset bleibt als Icon sichtbar, nur reset-btn selbst NICHT      */
+/* ausblenden — die .btn-label-Regel unten erledigt den Rest.)      */
+@media (max-width: 1260px) {
+  .hz-control { display: none !important; }
+  .hint-text  { display: none; }
+  .logo-text  { display: none; }
+  .sim-btn .btn-label { display: none; }
+  .tool-btn .btn-label { display: none; }
+}
+
 /* ── Mobile-Layout (< 600px) ────────────────────────────────── */
 @media (max-width: 599px) {
   .app-layout {
@@ -218,23 +233,7 @@ body { overflow: hidden; }
   /* Schritt-Overlay einblenden */
   .step-overlay { display: block; }
 
-  /* Hz-Slider: auf Mobile nicht mehr komplett ausblenden, nur kompakter —
-     Regler schmaler, Zahl bleibt sichtbar ("12 Hz" ist kurz genug) */
-  .hz-control input[type="range"] { width: 40px; }
-  .hz-control { gap: 3px; }
-
-  /* Reset bleibt sichtbar (Icon), Textlabel via generische .sim-btn-Regel
-     unten versteckt — analog zu allen anderen Buttons */
-  .hint-text  { display: none; }
-  .logo-text  { display: none; }
-
-  /* Undo/Redo: auf Mobile nur Icons, kein Textlabel (Platzgründe) */
-  /* Undo/Redo/Save/Load/Schritt: auf Mobile nur Icons, kein Textlabel
-     (generisch für alle .sim-btn — deckt auch künftig neue Buttons ab) */
-  .sim-btn .btn-label { display: none; }
-
-  /* Werkzeug-Buttons (Kabel/Umkehrer/Verzögerer/Löschen): auf Mobile
-     ebenfalls nur Icon — volle Labels waren der Haupt-Übeltäter für
-     horizontales Abschneiden auf schmalen Screens */
-  .tool-btn .btn-label { display: none; }
+  /* hz-control, reset-btn, hint-text, logo-text und alle .btn-label sind
+     bereits durch den ≤1260px-Kompaktmodus oben abgedeckt (599px ist eine
+     Teilmenge davon) — hier nur noch, was spezifisch für echtes Mobile ist. */
 }
