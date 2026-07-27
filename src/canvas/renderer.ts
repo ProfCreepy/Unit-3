@@ -105,3 +105,46 @@ export function renderFrame(
     }
   }
 }
+
+/**
+ * Zeichnet die Selektions-Overlay separat von renderFrame — halbtransparentes
+ * weißes Overlay über selektierten Zellen, plus gestrichelter Rahmen während
+ * eines neuen Rechteck-Drags. Während previewOffset gesetzt ist (laufendes
+ * Verschieben): Overlay an der VERSCHOBENEN Position zeichnen, Grid selbst
+ * bleibt bis zum Commit unverändert.
+ */
+export function renderSelectionOverlay(
+  ctx: CanvasRenderingContext2D,
+  selected: Set<string>,
+  cam: Camera,
+  previewOffset: { dx: number; dy: number } | null,
+  activeDragRect: { x0: number; y0: number; x1: number; y1: number } | null,
+): void {
+  const z = cam.zoom;
+
+  if (selected.size > 0) {
+    ctx.fillStyle = 'rgba(255,255,255,.15)';
+    for (const k of selected) {
+      const [cx, cy] = fromKey(k);
+      const wx = cx + (previewOffset?.dx ?? 0);
+      const wy = cy + (previewOffset?.dy ?? 0);
+      const [sx, sy] = worldToScreen(wx, wy, cam);
+      ctx.fillRect(sx, sy, z, z);
+    }
+  }
+
+  if (activeDragRect) {
+    const { x0, y0, x1, y1 } = activeDragRect;
+    const minX = Math.min(x0, x1), maxX = Math.max(x0, x1);
+    const minY = Math.min(y0, y1), maxY = Math.max(y0, y1);
+    const [sx, sy] = worldToScreen(minX, minY, cam);
+    const w = (maxX - minX + 1) * z;
+    const h = (maxY - minY + 1) * z;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,.6)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 4]);
+    ctx.strokeRect(sx + .5, sy + .5, w - 1, h - 1);
+    ctx.restore();
+  }
+}

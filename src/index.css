@@ -131,6 +131,39 @@ body { overflow: hidden; }
   z-index: 10;
 }
 
+/* ── Selektions-Mini-Toolbar (Schritt 5) ─────────────────────── */
+/* Schwebt zentriert über dem Canvas, analog zu .step-overlay, aber
+   unten und interaktiv (pointer-events, kein pointer-events:none). */
+.selection-actions {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(15, 15, 42, 0.9);
+  border: 1px solid var(--border-ui);
+  border-radius: 6px;
+  z-index: 10;
+}
+.sel-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--sim-blue);
+  font-size: 16px;
+  cursor: pointer;
+}
+.sel-action-btn:hover { background: rgba(68,136,204,0.15); }
+.sel-action-danger { color: var(--cell-delete); }
+.sel-action-danger:hover { background: rgba(255,68,85,0.15); }
+
 /* ── Toolbar-Buttons ────────────────────────────────────────── */
 .tool-btn {
   display: inline-flex;

@@ -4,6 +4,7 @@ import type { CanvasHandle } from './components/Canvas';
 import { Toolbar }      from './components/Toolbar';
 import { SimBar }       from './components/SimBar';
 import { SimControls }  from './components/SimControls';
+import { SelectionActions } from './components/SelectionActions';
 import { useGridStore } from './store/gridStore';
 import { useKeyboardShortcuts } from './store/useKeyboardShortcuts';
 import { serialize, deserialize, SerializeError } from './lib/serializer';
@@ -73,7 +74,7 @@ export default function App() {
 
   // Zentrale Tastatur-Shortcuts — unabhängig davon welche Komponente
   // die zugehörigen Buttons rendert (Toolbar / SimBar)
-  useKeyboardShortcuts();
+  useKeyboardShortcuts(() => canvasRef.current?.getLastPointerCell() ?? null);
 
   // Simulations-Schleife
   useEffect(() => {
@@ -143,6 +144,7 @@ export default function App() {
       ────────────────────────────────────────────────────────── */}
       <div className="canvas-area">
         <Canvas ref={canvasRef} />
+        <SelectionActions />
         <div className="step-overlay">
           {steps} Schritte · {cells} Zellen
         </div>

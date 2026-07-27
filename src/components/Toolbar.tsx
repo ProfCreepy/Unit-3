@@ -6,6 +6,7 @@ const TOOLS: { id: Tool; icon: string; label: string; shortcut: string; color: s
   { id: 'inverter', icon: '◇', label: 'Umkehrer',   shortcut: '2', color: 'var(--cell-inv)'    },
   { id: 'delay',    icon: '▷', label: 'Verzögerer', shortcut: '3', color: 'var(--cell-delay)'  },
   { id: 'delete',   icon: '✕', label: 'Löschen',    shortcut: 'E', color: 'var(--cell-delete)' },
+  { id: 'select',   icon: '▭', label: 'Auswählen',  shortcut: 'S', color: 'var(--sim-blue)'    },
 ];
 
 /**

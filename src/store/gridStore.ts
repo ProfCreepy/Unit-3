@@ -1,7 +1,13 @@
 import { create } from 'zustand';
-import type { Grid, CellType } from '../simulation/types';
+import type { Grid, CellType, Cell } from '../simulation/types';
 import { key, toggleCellState } from '../simulation/grid';
 import { simulationStep, SimLoopError } from '../simulation/engine';
+import { translateKeys, rotateKeys, mirrorKeys } from '../canvas/selection';
+// Typ-only Import aus selectionStore — wird zur Compile-Zeit komplett entfernt
+// (verbatimModuleSyntax), also KEIN Laufzeit-Zyklus gridStore↔selectionStore.
+// ClipboardCell gehört konzeptionell zu selectionStore (verwaltet die
+// Zwischenablage); gridStore braucht den Typ nur für die pasteCells-Signatur.
+import type { ClipboardCell } from './selectionStore';
 
 /** Maximale Größe von Undo-/Redo-Stack — älteste Einträge fallen heraus. */
 const MAX_UNDO = 60;
@@ -13,6 +19,31 @@ const MAX_UNDO = 60;
  * eigenen Undo-Schritt pusht statt einen gemeinsamen für den ganzen Drag.
  */
 let batchActive = false;
+
+/**
+ * Verschiebt Zellen von oldKeys[i] nach newKeys[i]. Set-Iterationsreihenfolge
+ * = Einfügereihenfolge (ES2015+-Garantie), daher ist die Paarung über
+ * parallele Arrays stabil — solange oldKeys/newKeys aus derselben
+ * Quell-Iteration stammen (translateKeys/rotateKeys/mirrorKeys iterieren ihr
+ * Input-Set unverändert durch, siehe canvas/selection.ts).
+ * Erst ALLE Quellen löschen, DANN ALLE Ziele setzen — verhindert Kollisionen
+ * bei überlappenden alten/neuen Positionen (z. B. Verschieben um 1 Zelle).
+ * Ziel-Zellen außerhalb der Selektion werden dabei überschrieben
+ * (Kollisions-Policy, konsistent mit setCell).
+ */
+function remapCells(grid: Grid, oldKeys: Set<string>, newKeys: Set<string>): Grid {
+  const g = new Map(grid);
+  const oldArr = [...oldKeys];
+  const newArr = [...newKeys];
+  const pairs: [string, Cell][] = [];
+  for (let i = 0; i < oldArr.length; i++) {
+    const cell = g.get(oldArr[i]);
+    if (cell) pairs.push([newArr[i], cell]);
+  }
+  for (const k of oldArr) g.delete(k);
+  for (const [k, cell] of pairs) g.set(k, cell);
+  return g;
+}
 
 interface GridStore {
   grid:      Grid;
@@ -38,6 +69,17 @@ interface GridStore {
   setHz:         (v: number) => void;
   clear:         () => void;
   loadGrid:      (g: Grid) => void;
+
+  /** Verschiebt alle Zellen mit den gegebenen Keys um (dx, dy). Überschreibt Ziel-Zellen. */
+  moveCells:   (keys: Set<string>, dx: number, dy: number) => void;
+  /** Löscht alle Zellen mit den gegebenen Keys. */
+  deleteCells: (keys: Set<string>) => void;
+  /** Fügt Zwischenablage-Zellen ein, verankert bei (atX, atY). Überschreibt Ziel-Zellen. */
+  pasteCells:  (cells: ClipboardCell[], atX: number, atY: number) => Set<string>;
+  /** Rotiert die Zellen mit den gegebenen Keys um ihr gemeinsames Zentrum. */
+  rotateCells: (keys: Set<string>, dir: 1 | -1) => Set<string>;
+  /** Spiegelt die Zellen mit den gegebenen Keys. */
+  mirrorCells: (keys: Set<string>, axis: 'x' | 'y') => Set<string>;
 
   /** Speichert den aktuellen Grid-Zustand auf dem Undo-Stack (max. 60). */
   pushUndo:   () => void;
@@ -115,6 +157,50 @@ export const useGridStore = create<GridStore>((set, get) => ({
   },
 
   loadGrid: g => set({ grid: g, stepCount: 0, isRunning: false, loopError: null }),
+
+  moveCells: (keys, dx, dy) => {
+    const newKeys = translateKeys(keys, dx, dy);
+    if (!batchActive) get().pushUndo();
+    set(s => ({ grid: remapCells(s.grid, keys, newKeys) }));
+  },
+
+  deleteCells: keys => {
+    if (!batchActive) get().pushUndo();
+    set(s => {
+      const g = new Map(s.grid);
+      for (const k of keys) g.delete(k);
+      return { grid: g };
+    });
+  },
+
+  pasteCells: (cells, atX, atY) => {
+    if (!batchActive) get().pushUndo();
+    const newKeys = new Set<string>();
+    set(s => {
+      const g = new Map(s.grid);
+      for (const c of cells) {
+        const k = key(atX + c.dx, atY + c.dy);
+        g.set(k, { type: c.type, state: c.state, forced: c.forced });
+        newKeys.add(k);
+      }
+      return { grid: g };
+    });
+    return newKeys;
+  },
+
+  rotateCells: (keys, dir) => {
+    const newKeys = rotateKeys(keys, dir);
+    if (!batchActive) get().pushUndo();
+    set(s => ({ grid: remapCells(s.grid, keys, newKeys) }));
+    return newKeys;
+  },
+
+  mirrorCells: (keys, axis) => {
+    const newKeys = mirrorKeys(keys, axis);
+    if (!batchActive) get().pushUndo();
+    set(s => ({ grid: remapCells(s.grid, keys, newKeys) }));
+    return newKeys;
+  },
 
   pushUndo: () => set(s => {
     const stack = [...s.undoStack, s.grid];

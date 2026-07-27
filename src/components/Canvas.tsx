@@ -1,11 +1,13 @@
 import { forwardRef, useRef, useEffect, useCallback, useImperativeHandle } from 'react';
 import { useGridStore }      from '../store/gridStore';
 import { useUIStore }        from '../store/uiStore';
-import { renderFrame }       from '../canvas/renderer';
+import { useSelectionStore } from '../store/selectionStore';
+import { renderFrame, renderSelectionOverlay } from '../canvas/renderer';
 import { PointerController } from '../canvas/input';
-import { zoomAtPoint }       from '../canvas/coordinates';
+import { zoomAtPoint, getCellAt } from '../canvas/coordinates';
 import type { Camera }       from '../canvas/coordinates';
 import type { Tool }         from '../canvas/input';
+import { cellsInRect, translateKeys } from '../canvas/selection';
 
 // Kamera-Startwert — lebt als Ref, kein Zustand, keine React-Re-Renders
 const INITIAL_CAMERA: Camera = { x: -15, y: -9, zoom: 36 };
@@ -18,6 +20,14 @@ const INITIAL_CAMERA: Camera = { x: -15, y: -9, zoom: 36 };
 export interface CanvasHandle {
   getCameraSnapshot: () => Camera;
   setCameraSnapshot: (cam: Camera) => void;
+  /**
+   * Letzte bekannte Pointer-Zellposition — null falls noch nie ein Pointer-
+   * Event stattfand. Nicht Teil des Save/Load-Kontrakts (Schritt 4), sondern
+   * neu für Schritt 5: Strg+V soll "an letzter bekannter Zeigerposition"
+   * einfügen, aber useKeyboardShortcuts.ts hat keinen eigenen Zugriff auf
+   * Pointer-Position oder Kamera (beide leben nur hier in Canvas.tsx-Refs).
+   */
+  getLastPointerCell: () => [number, number] | null;
 }
 
 export const Canvas = forwardRef<CanvasHandle, object>((_props, ref) => {
@@ -32,11 +42,18 @@ export const Canvas = forwardRef<CanvasHandle, object>((_props, ref) => {
   const rafRef    = useRef(0);
 
   // ── Nach außen exponierte Kamera-Schnittstelle (Save/Load) ───────────
+  const lastPointerClientRef = useRef<{ x: number; y: number } | null>(null);
   useImperativeHandle(ref, () => ({
     getCameraSnapshot: () => ({ ...cameraRef.current }),
     setCameraSnapshot: (cam: Camera) => {
       cameraRef.current = { ...cam };
       dirtyRef.current  = true;
+    },
+    getLastPointerCell: () => {
+      const p = lastPointerClientRef.current;
+      const c = canvasRef.current;
+      if (!p || !c) return null;
+      return getCellAt(p.x, p.y, c, cameraRef.current);
     },
   }), []);
 
@@ -56,6 +73,18 @@ export const Canvas = forwardRef<CanvasHandle, object>((_props, ref) => {
   const toolRef   = useRef<Tool>(tool);
   useEffect(() => { toolRef.current = tool; }, [tool]);
 
+  // ── Selektion ─────────────────────────────────────────────────────────
+  const selected      = useSelectionStore(s => s.selected);
+  const setSelection  = useSelectionStore(s => s.setSelection);
+  const clearSelection = useSelectionStore(s => s.clearSelection);
+  const moveCells     = useGridStore(s => s.moveCells);
+  const selectedRef   = useRef(selected);
+  selectedRef.current = selected; // immer aktuell für Event-Handler
+  /** Live-Vorschau beim Verschieben — rein visuell, kein Store-Update pro pointermove. */
+  const previewOffsetRef = useRef<{ dx: number; dy: number } | null>(null);
+  /** Live-Vorschau beim Aufziehen eines neuen Rechtecks — ebenfalls rein visuell. */
+  const activeDragRectRef = useRef<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
+
   // ── Zeichnen ──────────────────────────────────────────────────────────
   // Liest ausschließlich aus Refs — kein React-Kontext nötig.
   const draw = useCallback(() => {
@@ -64,6 +93,10 @@ export const Canvas = forwardRef<CanvasHandle, object>((_props, ref) => {
     const dpr = window.devicePixelRatio || 1;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     renderFrame(ctx, gridRef.current, cameraRef.current, c.clientWidth, c.clientHeight);
+    renderSelectionOverlay(
+      ctx, selectedRef.current, cameraRef.current,
+      previewOffsetRef.current, activeDragRectRef.current,
+    );
   }, []); // keine Deps — liest aus stabilen Refs
 
   // ── rAF-Loop ──────────────────────────────────────────────────────────
@@ -81,6 +114,8 @@ export const Canvas = forwardRef<CanvasHandle, object>((_props, ref) => {
 
   // Grid-Änderung (Zustand) → dirty markieren → rAF zeichnet nächsten Frame
   useEffect(() => { dirtyRef.current = true; }, [grid]);
+  // Selektions-Änderung (z. B. Esc, SelectionActions-Buttons) → ebenfalls dirty
+  useEffect(() => { dirtyRef.current = true; }, [selected]);
 
   // ── HiDPI-Resize ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -107,6 +142,10 @@ export const Canvas = forwardRef<CanvasHandle, object>((_props, ref) => {
           const g  = gridRef.current;
           const k  = `${cx},${cy}`;
 
+          // Wird bei tool='select' nie aufgerufen (der select-Zweig im
+          // PointerController ruft nie onPlace/onDelete auf), aber TS kennt
+          // diese Laufzeit-Garantie nicht — Guard nötig für Typsicherheit.
+          if (t === 'select') return;
           if (t === 'delete') { delCell(cx, cy); return; }
 
           if (!g.has(k)) {
@@ -151,9 +190,49 @@ export const Canvas = forwardRef<CanvasHandle, object>((_props, ref) => {
         onDragEnd: () => {
           endBatch();
         },
+
+        // ─── Selektions-Werkzeug (Schritt 5) ────────────────────────
+        onSelectRect: (x0, y0, x1, y1) => {
+          const rectKeys = cellsInRect(x0, y0, x1, y1);
+          const g = gridRef.current;
+          const hit = new Set<string>();
+          for (const k of rectKeys) if (g.has(k)) hit.add(k);
+          setSelection(hit);
+          activeDragRectRef.current = null;
+          dirtyRef.current = true;
+        },
+
+        onSelectRectPreview: (x0, y0, x1, y1) => {
+          activeDragRectRef.current = { x0, y0, x1, y1 };
+          dirtyRef.current = true;
+        },
+
+        onSelectClear: () => {
+          clearSelection();
+          dirtyRef.current = true;
+        },
+
+        onSelectMovePreview: (dx, dy) => {
+          previewOffsetRef.current = { dx, dy };
+          dirtyRef.current = true;
+        },
+
+        onSelectMoveCommit: (dx, dy) => {
+          moveCells(selectedRef.current, dx, dy);
+          setSelection(translateKeys(selectedRef.current, dx, dy));
+          previewOffsetRef.current = null;
+          dirtyRef.current = true;
+        },
+
+        onSelectCancel: () => {
+          previewOffsetRef.current = null;
+          activeDragRectRef.current = null;
+          dirtyRef.current = true;
+        },
       },
       () => cameraRef.current,
       () => toolRef.current,
+      (cx, cy) => selectedRef.current.has(`${cx},${cy}`),
     );
 
     ctrlRef.current = ctrl;
@@ -176,8 +255,14 @@ export const Canvas = forwardRef<CanvasHandle, object>((_props, ref) => {
     <canvas
       ref={canvasRef}
       style={{ cursor: 'crosshair' }}
-      onPointerDown={fwd(e  => ctrlRef.current?.pointerDown(e))}
-      onPointerMove={fwd(e  => ctrlRef.current?.pointerMove(e))}
+      onPointerDown={fwd(e => {
+        lastPointerClientRef.current = { x: e.clientX, y: e.clientY };
+        ctrlRef.current?.pointerDown(e);
+      })}
+      onPointerMove={fwd(e => {
+        lastPointerClientRef.current = { x: e.clientX, y: e.clientY };
+        ctrlRef.current?.pointerMove(e);
+      })}
       onPointerUp={fwd(e    => ctrlRef.current?.pointerUp(e))}
       onPointerCancel={fwd(e => ctrlRef.current?.pointerCancel(e))}
       onContextMenu={e => e.preventDefault()}
