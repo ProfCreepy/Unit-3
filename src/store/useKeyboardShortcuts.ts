@@ -3,6 +3,7 @@ import { useUIStore }        from './uiStore';
 import { useGridStore }      from './gridStore';
 import { useSelectionStore } from './selectionStore';
 import { boundingBox }       from '../canvas/selection';
+import { finalizePendingMove } from './selectionOps';
 
 /**
  * Zentraler Keyboard-Shortcut-Hook.
@@ -18,6 +19,7 @@ import { boundingBox }       from '../canvas/selection';
  *   Strg+V bei (0,0) ein.
  */
 export function useKeyboardShortcuts(getPasteAnchor?: () => [number, number] | null) {
+  const tool       = useUIStore(s => s.tool);
   const setTool    = useUIStore(s => s.setTool);
   const step       = useGridStore(s => s.step);
   const running    = useGridStore(s => s.isRunning);
@@ -41,10 +43,10 @@ export function useKeyboardShortcuts(getPasteAnchor?: () => [number, number] | n
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
 
       // Werkzeuge
-      if (e.key === '1') setTool('cable');
-      if (e.key === '2') setTool('inverter');
-      if (e.key === '3') setTool('delay');
-      if (e.key === 'e' || e.key === 'E') setTool('delete');
+      if (e.key === '1') { if (tool === 'select') finalizePendingMove(); setTool('cable'); }
+      if (e.key === '2') { if (tool === 'select') finalizePendingMove(); setTool('inverter'); }
+      if (e.key === '3') { if (tool === 'select') finalizePendingMove(); setTool('delay'); }
+      if (e.key === 'e' || e.key === 'E') { if (tool === 'select') finalizePendingMove(); setTool('delete'); }
       if (e.key === 's' || e.key === 'S') setTool('select');
 
       // Simulation
@@ -70,20 +72,33 @@ export function useKeyboardShortcuts(getPasteAnchor?: () => [number, number] | n
         redo();
       }
 
-      // ── Selektion (Schritt 5) ──────────────────────────────────────
+      // ── Selektion (Schritt 5 / 5b) ──────────────────────────────────
       if (e.key === 'Escape') {
+        finalizePendingMove();
         clearSelection();
         return;
       }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selected.size > 0) {
         e.preventDefault();
+        finalizePendingMove();
         deleteCells(selected);
         clearSelection();
         return;
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c' && selected.size > 0) {
         e.preventDefault();
+        finalizePendingMove();
         copyToClipboard(grid);
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x' && selected.size > 0) {
+        e.preventDefault();
+        // Ausschneiden = Kopieren + Löschen. deleteCells pusht genau EINEN
+        // Undo-Schritt — copyToClipboard selbst mutiert das Grid nicht.
+        finalizePendingMove();
+        copyToClipboard(grid);
+        deleteCells(selected);
+        clearSelection();
         return;
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v' && clipboard && clipboard.length > 0) {
@@ -95,10 +110,7 @@ export function useKeyboardShortcuts(getPasteAnchor?: () => [number, number] | n
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd' && selected.size > 0) {
         e.preventDefault();
-        // Duplizieren nutzt intern copyToClipboard + pasteCells (DRY) — das
-        // überschreibt als Nebeneffekt auch den regulären Strg+C-Inhalt. Da
-        // es keine sichtbare "Zwischenablage"-UI gibt, ist das unauffällig
-        // und spart eine zweite, praktisch identische Extraktions-Logik.
+        finalizePendingMove();
         copyToClipboard(grid);
         const { minX, minY } = boundingBox(selected);
         const dup = useSelectionStore.getState().clipboard ?? [];
@@ -108,6 +120,7 @@ export function useKeyboardShortcuts(getPasteAnchor?: () => [number, number] | n
       }
       if ((e.key === 'r' || e.key === 'R') && selected.size > 0) {
         e.preventDefault();
+        finalizePendingMove();
         const dir = e.shiftKey ? -1 : 1;
         const newKeys = rotateCells(selected, dir);
         setSelection(newKeys);
@@ -115,6 +128,7 @@ export function useKeyboardShortcuts(getPasteAnchor?: () => [number, number] | n
       }
       if ((e.key === 'm' || e.key === 'M') && selected.size > 0) {
         e.preventDefault();
+        finalizePendingMove();
         const axis = e.shiftKey ? 'y' : 'x';
         const newKeys = mirrorCells(selected, axis);
         setSelection(newKeys);
@@ -124,7 +138,7 @@ export function useKeyboardShortcuts(getPasteAnchor?: () => [number, number] | n
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [
-    running, setTool, setRunning, step, undo, redo,
+    tool, running, setTool, setRunning, step, undo, redo,
     selected, clipboard, grid, deleteCells, pasteCells, rotateCells, mirrorCells,
     setSelection, clearSelection, copyToClipboard, getPasteAnchor,
   ]);

@@ -12,9 +12,18 @@ export interface ClipboardCell {
 interface SelectionStore {
   selected:  Set<string>;
   clipboard: ClipboardCell[] | null;
+  /**
+   * Angesammelte, noch nicht ins Grid geschriebene Verschiebung seit dem
+   * letzten Finalisieren. {0,0} = nichts schwebt gerade. Siehe
+   * store/selectionOps.ts (finalizePendingMove) für die Schreib-Logik.
+   */
+  pendingOffset: { dx: number; dy: number };
 
-  setSelection:   (keys: Set<string>) => void;
-  clearSelection: () => void;
+  setSelection:     (keys: Set<string>) => void;
+  clearSelection:   () => void;
+  setPendingOffset: (o: { dx: number; dy: number }) => void;
+  /** Ersetzt die Zwischenablage direkt — z. B. nach Import einer .u3sel-Datei. */
+  setClipboard:     (cells: ClipboardCell[]) => void;
 
   /** Liest die aktuell selektierten Zellen aus dem Grid in die Zwischenablage. */
   copyToClipboard: (grid: Grid) => void;
@@ -28,11 +37,16 @@ interface SelectionStore {
  * Undo-Logik hier.
  */
 export const useSelectionStore = create<SelectionStore>((set, get) => ({
-  selected:  new Set(),
-  clipboard: null,
+  selected:      new Set(),
+  clipboard:     null,
+  pendingOffset: { dx: 0, dy: 0 },
 
   setSelection:   keys => set({ selected: keys }),
-  clearSelection: ()   => set({ selected: new Set() }),
+  // Eine aufgehobene Selektion kann keine schwebende Verschiebung mehr
+  // "besitzen" — clearSelection setzt pendingOffset IMMER mit zurück.
+  clearSelection: () => set({ selected: new Set(), pendingOffset: { dx: 0, dy: 0 } }),
+  setPendingOffset: o => set({ pendingOffset: o }),
+  setClipboard:     cells => set({ clipboard: cells }),
 
   copyToClipboard: grid => {
     const { selected } = get();

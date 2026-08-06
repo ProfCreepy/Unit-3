@@ -126,8 +126,11 @@ export interface PointerCallbacks {
   onDragEnd?: () => void;
 
   // ─── Selektions-Werkzeug (Schritt 5) ──────────────────────────────
-  /** Rechteckauswahl fertig gezogen (Weltkoordinaten, committed). */
-  onSelectRect?: (x0: number, y0: number, x1: number, y1: number) => void;
+  /**
+   * Rechteckauswahl fertig gezogen (Weltkoordinaten, committed).
+   * modifier: 'replace' (normal), 'add' (Shift-gezogen), 'subtract' (Alt-gezogen).
+   */
+  onSelectRect?: (x0: number, y0: number, x1: number, y1: number, modifier: 'replace' | 'add' | 'subtract') => void;
   /**
    * Live-Vorschau während des Aufziehens eines neuen Rechtecks (Weltkoordinaten).
    * Nicht im ursprünglichen Callback-Satz der Spec, aber notwendig: renderer.ts'
@@ -141,6 +144,14 @@ export interface PointerCallbacks {
   onSelectMovePreview?: (dx: number, dy: number) => void;
   /** Verschiebung committed (pointerUp nach Selektions-Drag). */
   onSelectMoveCommit?: (dx: number, dy: number) => void;
+  /**
+   * Wird aufgerufen BEVOR eine genuine neue Rechteckauswahl beginnt (d. h.
+   * der Tap trifft NICHT die aktuelle — ggf. schwebende — Selektion, oder
+   * eine Modifier-Taste war gehalten). Eine evtl. noch nicht ins Grid
+   * geschriebene Verschiebung muss vorher finalisiert werden (siehe
+   * store/selectionOps.ts finalizePendingMove).
+   */
+  onSelectFinalize?: () => void;
   /**
    * Rechteck- oder Verschiebe-Vorschau abgebrochen ohne Commit (z. B. wenn ein
    * zweiter Finger während eines Selektions-Drags aufsetzt → Pinch übernimmt).
@@ -176,6 +187,8 @@ export class PointerController {
   private selectMode: "rect" | "move" | null = null;
   private selectAnchor: [number, number] | null = null;
   private selectDidDrag = false;
+  /** Gesetzt in pointerDown (Schritt 5b, Punkt 5 — Multi-Select), an onSelectRect durchgereicht. */
+  private selectModifier: "replace" | "add" | "subtract" = "replace";
 
   // Pinch-Zustand
   private pinchDist = 0;
@@ -389,8 +402,19 @@ export class PointerController {
     // Long-Press-Löschen unten werden für tool='select' nie erreicht.
     if (this.getTool() === "select") {
       const [cx, cy] = this.cellAt(e.clientX, e.clientY);
+      // Shift/Alt gehalten → IMMER neue Rechteckauswahl, Hit-Test der
+      // bestehenden Selektion wird ignoriert (wer eine Modifier-Taste hält,
+      // will die Auswahl anpassen, nicht etwas verschieben).
+      const modifierHeld = e.shiftKey || e.altKey;
+      const isHit = !modifierHeld && this.getSelectionHit(cx, cy);
+      if (!isHit) {
+        // Genuine neue Rechteckauswahl beginnt → evtl. schwebende
+        // Verschiebung MUSS vorher finalisiert werden.
+        this.cb.onSelectFinalize?.();
+      }
       this.selectAnchor = [cx, cy];
-      this.selectMode = this.getSelectionHit(cx, cy) ? "move" : "rect";
+      this.selectMode = isHit ? "move" : "rect";
+      this.selectModifier = e.shiftKey ? "add" : e.altKey ? "subtract" : "replace";
       return;
     }
 
@@ -506,7 +530,7 @@ export class PointerController {
         if (this.selectDidDrag) {
           const [cx, cy] = this.cellAt(e.clientX, e.clientY);
           if (this.selectMode === "rect") {
-            this.cb.onSelectRect?.(anchor[0], anchor[1], cx, cy);
+            this.cb.onSelectRect?.(anchor[0], anchor[1], cx, cy, this.selectModifier);
           } else {
             const dx = cx - anchor[0], dy = cy - anchor[1];
             // Nulldelta nicht committen — kein leerer Undo-Schritt für

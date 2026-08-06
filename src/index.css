@@ -140,6 +140,9 @@ body { overflow: hidden; }
   left: 50%;
   transform: translateX(-50%);
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: calc(100% - 24px);
   gap: 4px;
   padding: 4px;
   background: rgba(15, 15, 42, 0.9);

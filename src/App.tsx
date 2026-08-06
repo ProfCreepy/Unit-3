@@ -6,53 +6,10 @@ import { SimBar }       from './components/SimBar';
 import { SimControls }  from './components/SimControls';
 import { SelectionActions } from './components/SelectionActions';
 import { useGridStore } from './store/gridStore';
+import { useSelectionStore } from './store/selectionStore';
 import { useKeyboardShortcuts } from './store/useKeyboardShortcuts';
-import { serialize, deserialize, SerializeError } from './lib/serializer';
-
-/** Speichert `content` als Datei — File System Access API, sonst <a download>-Fallback. */
-async function saveToFile(content: string, filename: string) {
-  if ('showSaveFilePicker' in window) {
-    try {
-      const handle = await (window as unknown as {
-        showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle>;
-      }).showSaveFilePicker({
-        suggestedName: filename,
-        types: [{ description: 'Unit-3 Datei', accept: { 'application/json': ['.u3'] } }],
-      });
-      const writable = await handle.createWritable();
-      await writable.write(content);
-      await writable.close();
-      return;
-    } catch (e) {
-      // Nutzer hat den Save-Dialog abgebrochen → kein Fehler, einfach nichts tun
-      if (e instanceof DOMException && e.name === 'AbortError') return;
-      throw e;
-    }
-  }
-  // Fallback: Firefox, Safari, Mobile — kein Speicherort wählbar, direkter Download
-  const blob = new Blob([content], { type: 'application/json' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-/** Öffnet einen Datei-Dialog und liest die gewählte Datei als Text. */
-function loadFromFile(): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const input    = document.createElement('input');
-    input.type     = 'file';
-    input.accept   = '.u3,.json';
-    input.onchange = () => {
-      const file = input.files?.[0];
-      if (!file) { reject(new Error('Keine Datei gewählt')); return; }
-      file.text().then(resolve).catch(reject);
-    };
-    input.click();
-  });
-}
+import { serialize, deserialize, SerializeError, deserializeSelection } from './lib/serializer';
+import { saveToFile, loadFromFile } from './lib/fileIO';
 
 /** `unit3-projekt-YYYY-MM-DD.u3` — Datum wird beim Speichern generiert. */
 function suggestedFilename() {
@@ -90,7 +47,7 @@ export default function App() {
     if (!camera) return; // Canvas noch nicht bereit
     const json = serialize(grid, camera);
     try {
-      await saveToFile(json, suggestedFilename());
+      await saveToFile(json, suggestedFilename(), 'Unit-3 Datei', { 'application/json': ['.u3'] });
     } catch {
       alert('Datei konnte nicht gespeichert werden.');
     }
@@ -102,15 +59,36 @@ export default function App() {
   const handleLoad = async () => {
     let text: string;
     try {
-      text = await loadFromFile();
+      text = await loadFromFile('.u3,.json');
     } catch {
       return; // kein Dialog-Abbruch als Fehler behandeln
     }
     setRunning(false);
     try {
       const { grid: loaded, camera } = deserialize(text);
+      useSelectionStore.getState().clearSelection();
       loadGrid(loaded);
       canvasRef.current?.setCameraSnapshot(camera);
+    } catch (e) {
+      const msg = e instanceof SerializeError ? e.message : 'Datei konnte nicht gelesen werden';
+      alert(msg);
+    }
+  };
+
+  // ── Selektion importieren (.u3sel) ───────────────────────────────────────
+  // Unabhängig von handleLoad: lädt keine Grid-Datei, sondern befüllt nur
+  // die Zwischenablage — Einfügen passiert danach ganz normal per Strg+V
+  // oder dem Einfügen-Button.
+  const handleImportSelection = async () => {
+    let text: string;
+    try {
+      text = await loadFromFile('.u3sel,.json');
+    } catch {
+      return;
+    }
+    try {
+      const cells = deserializeSelection(text);
+      useSelectionStore.getState().setClipboard(cells);
     } catch (e) {
       const msg = e instanceof SerializeError ? e.message : 'Datei konnte nicht gelesen werden';
       alert(msg);
@@ -135,7 +113,7 @@ export default function App() {
       ────────────────────────────────────────────────────────── */}
       <header className="top-bar">
         <Toolbar />
-        <SimBar onSave={handleSave} onLoad={handleLoad} />
+        <SimBar onSave={handleSave} onLoad={handleLoad} onImportSelection={handleImportSelection} />
       </header>
 
       {/* ── Canvas ───────────────────────────────────────────────
@@ -144,7 +122,7 @@ export default function App() {
       ────────────────────────────────────────────────────────── */}
       <div className="canvas-area">
         <Canvas ref={canvasRef} />
-        <SelectionActions />
+        <SelectionActions getPasteAnchor={() => canvasRef.current?.getLastPointerCell() ?? null} />
         <div className="step-overlay">
           {steps} Schritte · {cells} Zellen
         </div>

@@ -7,7 +7,8 @@ import { PointerController } from '../canvas/input';
 import { zoomAtPoint, getCellAt } from '../canvas/coordinates';
 import type { Camera }       from '../canvas/coordinates';
 import type { Tool }         from '../canvas/input';
-import { cellsInRect, translateKeys } from '../canvas/selection';
+import { cellsInRect } from '../canvas/selection';
+import { finalizePendingMove } from '../store/selectionOps';
 
 // Kamera-Startwert — lebt als Ref, kein Zustand, keine React-Re-Renders
 const INITIAL_CAMERA: Camera = { x: -15, y: -9, zoom: 36 };
@@ -77,10 +78,19 @@ export const Canvas = forwardRef<CanvasHandle, object>((_props, ref) => {
   const selected      = useSelectionStore(s => s.selected);
   const setSelection  = useSelectionStore(s => s.setSelection);
   const clearSelection = useSelectionStore(s => s.clearSelection);
-  const moveCells     = useGridStore(s => s.moveCells);
   const selectedRef   = useRef(selected);
   selectedRef.current = selected; // immer aktuell für Event-Handler
-  /** Live-Vorschau beim Verschieben — rein visuell, kein Store-Update pro pointermove. */
+  // Angesammelte, noch nicht ins Grid geschriebene Verschiebung (Schritt 5b,
+  // "Schwebende Verschiebung"). Reaktiv abonniert wie selected/tool.
+  const pendingOffset    = useSelectionStore(s => s.pendingOffset);
+  const setPendingOffset = useSelectionStore(s => s.setPendingOffset);
+  const pendingOffsetRef = useRef(pendingOffset);
+  pendingOffsetRef.current = pendingOffset;
+  /**
+   * Live-Vorschau beim Verschieben — rein visuell, kein Store-Update pro
+   * pointermove. Enthält NUR das Delta des AKTUELL laufenden Drags, nicht
+   * die gesamte angesammelte (pending) Verschiebung.
+   */
   const previewOffsetRef = useRef<{ dx: number; dy: number } | null>(null);
   /** Live-Vorschau beim Aufziehen eines neuen Rechtecks — ebenfalls rein visuell. */
   const activeDragRectRef = useRef<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
@@ -92,10 +102,14 @@ export const Canvas = forwardRef<CanvasHandle, object>((_props, ref) => {
     const ctx = c.getContext('2d')!;
     const dpr = window.devicePixelRatio || 1;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    renderFrame(ctx, gridRef.current, cameraRef.current, c.clientWidth, c.clientHeight);
+    renderFrame(ctx, gridRef.current, cameraRef.current, c.clientWidth, c.clientHeight, selectedRef.current);
+    const totalOffset = {
+      dx: pendingOffsetRef.current.dx + (previewOffsetRef.current?.dx ?? 0),
+      dy: pendingOffsetRef.current.dy + (previewOffsetRef.current?.dy ?? 0),
+    };
     renderSelectionOverlay(
-      ctx, selectedRef.current, cameraRef.current,
-      previewOffsetRef.current, activeDragRectRef.current,
+      ctx, gridRef.current, selectedRef.current, cameraRef.current,
+      totalOffset, activeDragRectRef.current,
     );
   }, []); // keine Deps — liest aus stabilen Refs
 
@@ -116,6 +130,7 @@ export const Canvas = forwardRef<CanvasHandle, object>((_props, ref) => {
   useEffect(() => { dirtyRef.current = true; }, [grid]);
   // Selektions-Änderung (z. B. Esc, SelectionActions-Buttons) → ebenfalls dirty
   useEffect(() => { dirtyRef.current = true; }, [selected]);
+  useEffect(() => { dirtyRef.current = true; }, [pendingOffset]);
 
   // ── HiDPI-Resize ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -191,13 +206,21 @@ export const Canvas = forwardRef<CanvasHandle, object>((_props, ref) => {
           endBatch();
         },
 
-        // ─── Selektions-Werkzeug (Schritt 5) ────────────────────────
-        onSelectRect: (x0, y0, x1, y1) => {
+        // ─── Selektions-Werkzeug (Schritt 5 / 5b) ────────────────────
+        onSelectRect: (x0, y0, x1, y1, modifier) => {
           const rectKeys = cellsInRect(x0, y0, x1, y1);
           const g = gridRef.current;
           const hit = new Set<string>();
           for (const k of rectKeys) if (g.has(k)) hit.add(k);
-          setSelection(hit);
+
+          const current = selectedRef.current;
+          if (modifier === 'add') {
+            setSelection(new Set([...current, ...hit]));
+          } else if (modifier === 'subtract') {
+            setSelection(new Set([...current].filter(k => !hit.has(k))));
+          } else {
+            setSelection(hit);
+          }
           activeDragRectRef.current = null;
           dirtyRef.current = true;
         },
@@ -208,19 +231,30 @@ export const Canvas = forwardRef<CanvasHandle, object>((_props, ref) => {
         },
 
         onSelectClear: () => {
+          finalizePendingMove();
           clearSelection();
           dirtyRef.current = true;
         },
 
         onSelectMovePreview: (dx, dy) => {
-          previewOffsetRef.current = { dx, dy };
+          previewOffsetRef.current = { dx, dy }; // Delta NUR des laufenden Drags
           dirtyRef.current = true;
         },
 
+        // Schreibt NICHT mehr direkt ins Grid — sammelt stattdessen im
+        // schwebenden pendingOffset an. Erst finalizePendingMove() (bei der
+        // nächsten "genuinen" Selektions-Aktion) schreibt final ins Grid.
         onSelectMoveCommit: (dx, dy) => {
-          moveCells(selectedRef.current, dx, dy);
-          setSelection(translateKeys(selectedRef.current, dx, dy));
+          setPendingOffset({
+            dx: pendingOffsetRef.current.dx + dx,
+            dy: pendingOffsetRef.current.dy + dy,
+          });
           previewOffsetRef.current = null;
+          dirtyRef.current = true;
+        },
+
+        onSelectFinalize: () => {
+          finalizePendingMove();
           dirtyRef.current = true;
         },
 
@@ -232,7 +266,12 @@ export const Canvas = forwardRef<CanvasHandle, object>((_props, ref) => {
       },
       () => cameraRef.current,
       () => toolRef.current,
-      (cx, cy) => selectedRef.current.has(`${cx},${cy}`),
+      // Hit-Test gegen die AKTUELLE sichtbare (ggf. schwebende) Position —
+      // nicht gegen die rohen Original-Keys.
+      (cx, cy) => {
+        const off = pendingOffsetRef.current;
+        return selectedRef.current.has(`${cx - off.dx},${cy - off.dy}`);
+      },
     );
 
     ctrlRef.current = ctrl;

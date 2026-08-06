@@ -1,5 +1,6 @@
 import { useUIStore }   from '../store/uiStore';
 import type { Tool }    from '../canvas/input';
+import { finalizePendingMove } from '../store/selectionOps';
 
 const TOOLS: { id: Tool; icon: string; label: string; shortcut: string; color: string }[] = [
   { id: 'cable',    icon: '━', label: 'Kabel',      shortcut: '1', color: 'var(--cell-cable)'  },
@@ -20,7 +21,7 @@ export function Toolbar() {
 
   return (
     <div className="scroll-row" style={{
-      display: 'flex', alignItems: 'center', gap: 4, padding: '0 8px', flex: 1, minWidth: 0,
+      display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, padding: '0 8px', flex: 1, minWidth: 0,
     }}>
       <span style={{
         color:       'var(--accent)',
@@ -36,7 +37,10 @@ export function Toolbar() {
         <button
           key={t.id}
           className="tool-btn"
-          onClick={() => setTool(t.id)}
+          onClick={() => {
+            if (tool === 'select' && t.id !== 'select') finalizePendingMove();
+            setTool(t.id);
+          }}
           style={{
             background:  tool === t.id ? t.color : 'transparent',
             color:       tool === t.id ? '#000'  : t.color,

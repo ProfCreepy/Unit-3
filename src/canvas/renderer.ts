@@ -1,4 +1,4 @@
-import type { Grid } from '../simulation/types';
+import type { Grid, CellType } from '../simulation/types';
 import { fromKey } from '../simulation/grid';
 import { type Camera, worldToScreen } from './coordinates';
 
@@ -48,16 +48,62 @@ function drawForcedBadge(
   ctx.stroke();
 }
 
+/**
+ * Zeichnet eine einzelne Zelle (Körper + Icon + Forced-Badge) an einer
+ * Bildschirmposition. Extrahiert aus der ursprünglichen renderFrame-Schleife
+ * (Schritt 5b) — 1:1 dieselbe Zeichen-Logik, keine Verhaltensänderung.
+ * Wird jetzt von ZWEI Stellen genutzt: renderFrame (normale Zellen) und
+ * renderSelectionOverlay (selektierte Zellen an ggf. verschobener Position).
+ */
+function drawCell(
+  ctx: CanvasRenderingContext2D,
+  type: CellType, state: boolean, forced: boolean | undefined,
+  sx: number, sy: number, z: number,
+): void {
+  const c  = CELL_COLORS[type];
+  const p  = Math.max(1.5, z * .07);
+  const rw = z - p * 2, rh = z - p * 2;
+  const r  = Math.min(4, rw * .2);
+
+  if (state && z >= 10) {
+    ctx.shadowColor = c.glow;
+    ctx.shadowBlur  = forced ? z * 1.0 : z * .6;
+  }
+
+  ctx.fillStyle = state ? c.on : c.off;
+  drawRoundedRect(ctx, sx + p, sy + p, rw, rh, r);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  if (z >= 20) {
+    ctx.fillStyle    = state ? 'rgba(0,0,0,.5)' : 'rgba(255,255,255,.12)';
+    ctx.font         = `${Math.min(z * .38, 16)}px monospace`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(CELL_ICONS[type], sx + z / 2, sy + z / 2);
+  }
+
+  if (forced && z >= 12) {
+    drawForcedBadge(ctx, sx, sy, z);
+  }
+}
+
 export function renderFrame(
   ctx: CanvasRenderingContext2D,
   grid: Grid, cam: Camera,
   width: number, height: number,
+  /**
+   * Keys, die HIER übersprungen werden (werden stattdessen von
+   * renderSelectionOverlay an ihrer — ggf. verschobenen — Position
+   * gezeichnet). Optional, damit renderFrame ohne Selektionskontext
+   * (z. B. in Tests) weiterhin exakt wie vorher funktioniert.
+   */
+  hiddenKeys?: Set<string>,
 ): void {
   const z = cam.zoom;
   ctx.fillStyle = '#0b0b1e';
   ctx.fillRect(0, 0, width, height);
 
-  // Gitterlinien
   ctx.strokeStyle = '#13133a'; ctx.lineWidth = 1;
   ctx.beginPath();
   for (let gx = Math.floor(cam.x); gx <= cam.x + width / z + 1; gx++) {
@@ -70,67 +116,39 @@ export function renderFrame(
   }
   ctx.stroke();
 
-  // Zellen
   for (const [k, cell] of grid) {
+    if (hiddenKeys?.has(k)) continue; // wird von renderSelectionOverlay gezeichnet
     const [cx, cy] = fromKey(k);
     const [sx, sy] = worldToScreen(cx, cy, cam);
-    const c  = CELL_COLORS[cell.type];
-    const p  = Math.max(1.5, z * .07);
-    const rw = z - p * 2, rh = z - p * 2;
-    const r  = Math.min(4, rw * .2);
-
-    // Glow — forced-Zellen bekommen stärkeres Glow
-    if (cell.state && z >= 10) {
-      ctx.shadowColor = c.glow;
-      ctx.shadowBlur  = cell.forced ? z * 1.0 : z * .6;
-    }
-
-    ctx.fillStyle = cell.state ? c.on : c.off;
-    drawRoundedRect(ctx, sx + p, sy + p, rw, rh, r);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-
-    // Icon (bei genug Zoom)
-    if (z >= 20) {
-      ctx.fillStyle    = cell.state ? 'rgba(0,0,0,.5)' : 'rgba(255,255,255,.12)';
-      ctx.font         = `${Math.min(z * .38, 16)}px monospace`;
-      ctx.textAlign    = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(CELL_ICONS[cell.type], sx + z / 2, sy + z / 2);
-    }
-
-    // Forced-Badge: weißer Kreis mit + oben rechts
-    if (cell.forced && z >= 12) {
-      drawForcedBadge(ctx, sx, sy, z);
-    }
+    drawCell(ctx, cell.type, cell.state, cell.forced, sx, sy, z);
   }
 }
 
 /**
- * Zeichnet die Selektions-Overlay separat von renderFrame — halbtransparentes
- * weißes Overlay über selektierten Zellen, plus gestrichelter Rahmen während
- * eines neuen Rechteck-Drags. Während previewOffset gesetzt ist (laufendes
- * Verschieben): Overlay an der VERSCHOBENEN Position zeichnen, Grid selbst
- * bleibt bis zum Commit unverändert.
+ * Zeichnet die selektierten Zellen SEPARAT von renderFrame, mit ihrem
+ * ECHTEN Aussehen (Farbe, Icon, Forced-Badge) an ihrer (ggf. schwebend
+ * verschobenen) Position — plus einen dünnen Rahmen zur Kennzeichnung.
+ * Läuft IMMER so (auch wenn offset={0,0} — kein bedingter Sonderfall).
  */
 export function renderSelectionOverlay(
   ctx: CanvasRenderingContext2D,
+  grid: Grid,
   selected: Set<string>,
   cam: Camera,
-  previewOffset: { dx: number; dy: number } | null,
+  offset: { dx: number; dy: number },
   activeDragRect: { x0: number; y0: number; x1: number; y1: number } | null,
 ): void {
   const z = cam.zoom;
 
-  if (selected.size > 0) {
-    ctx.fillStyle = 'rgba(255,255,255,.15)';
-    for (const k of selected) {
-      const [cx, cy] = fromKey(k);
-      const wx = cx + (previewOffset?.dx ?? 0);
-      const wy = cy + (previewOffset?.dy ?? 0);
-      const [sx, sy] = worldToScreen(wx, wy, cam);
-      ctx.fillRect(sx, sy, z, z);
-    }
+  for (const k of selected) {
+    const cell = grid.get(k);
+    if (!cell) continue;
+    const [cx, cy] = fromKey(k);
+    const [sx, sy] = worldToScreen(cx + offset.dx, cy + offset.dy, cam);
+    drawCell(ctx, cell.type, cell.state, cell.forced, sx, sy, z);
+    ctx.strokeStyle = 'rgba(255,255,255,.7)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(sx + .5, sy + .5, z - 1, z - 1);
   }
 
   if (activeDragRect) {

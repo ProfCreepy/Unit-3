@@ -8,6 +8,12 @@ import { translateKeys, rotateKeys, mirrorKeys } from '../canvas/selection';
 // ClipboardCell gehört konzeptionell zu selectionStore (verwaltet die
 // Zwischenablage); gridStore braucht den Typ nur für die pasteCells-Signatur.
 import type { ClipboardCell } from './selectionStore';
+// Laufzeit-Import (bewusst, Schritt 5b Punkt 7): undo/redo müssen eine evtl.
+// schwebende Selektions-Verschiebung VERWERFEN (nicht finalisieren — der
+// alte Grid-Zustand, auf den sie sich bezog, wird gerade verlassen). Kein
+// struktureller Zyklus: selectionStore.ts importiert nichts aus gridStore.ts,
+// also bleibt die Abhängigkeit einseitig (gridStore → selectionStore).
+import { useSelectionStore } from './selectionStore';
 
 /** Maximale Größe von Undo-/Redo-Stack — älteste Einträge fallen heraus. */
 const MAX_UNDO = 60;
@@ -214,6 +220,7 @@ export const useGridStore = create<GridStore>((set, get) => ({
 
   undo: () => set(s => {
     if (s.undoStack.length === 0) return {};
+    useSelectionStore.getState().clearSelection();
     const prev  = s.undoStack[s.undoStack.length - 1];
     const stack = s.undoStack.slice(0, -1);
     return {
@@ -225,6 +232,7 @@ export const useGridStore = create<GridStore>((set, get) => ({
 
   redo: () => set(s => {
     if (s.redoStack.length === 0) return {};
+    useSelectionStore.getState().clearSelection();
     const next  = s.redoStack[s.redoStack.length - 1];
     const stack = s.redoStack.slice(0, -1);
     return {

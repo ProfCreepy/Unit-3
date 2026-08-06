@@ -5,6 +5,12 @@ interface SimBarProps {
   onSave: () => void;
   /** Öffnet Datei-Dialog und lädt Grid + Kamera. Wird von App.tsx implementiert. */
   onLoad: () => void;
+  /**
+   * Öffnet Datei-Dialog und lädt eine exportierte Selektion (.u3sel) in
+   * die Zwischenablage — unabhängig von einer aktuellen Selektion, daher
+   * hier in SimBar statt in SelectionActions (Schritt 5b, Punkt 6).
+   */
+  onImportSelection: () => void;
 }
 
 /**
@@ -15,7 +21,7 @@ interface SimBarProps {
  * hat bewusst KEIN flexShrink:0 — er soll sich mit der Toolbar (App.tsx)
  * den verfügbaren Platz fair teilen, statt sie zusammenzudrücken.
  */
-export function SimBar({ onSave, onLoad }: SimBarProps) {
+export function SimBar({ onSave, onLoad, onImportSelection }: SimBarProps) {
   const step       = useGridStore(s => s.step);
   const running    = useGridStore(s => s.isRunning);
   const setRunning = useGridStore(s => s.setRunning);
@@ -30,6 +36,7 @@ export function SimBar({ onSave, onLoad }: SimBarProps) {
   return (
     <div className="scroll-row" style={{
       display:     'flex',
+      flexWrap:    'wrap',
       alignItems:  'center',
       gap:         6,
       padding:     '0 8px',
@@ -174,6 +181,19 @@ export function SimBar({ onSave, onLoad }: SimBarProps) {
         }}
       >
         📂<span className="btn-label"> Öffnen</span>
+      </button>
+      <button
+        className="sim-btn"
+        onClick={onImportSelection}
+        title="Selektion importieren (.u3sel)"
+        style={{
+          background:  'transparent',
+          color:       'var(--sim-blue)',
+          borderColor: 'var(--sim-blue)',
+          flexShrink:  0,
+        }}
+      >
+        📥<span className="btn-label"> Import</span>
       </button>
     </div>
   );
