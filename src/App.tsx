@@ -31,7 +31,12 @@ export default function App() {
 
   // Zentrale Tastatur-Shortcuts — unabhängig davon welche Komponente
   // die zugehörigen Buttons rendert (Toolbar / SimBar)
-  useKeyboardShortcuts(() => canvasRef.current?.getLastPointerCell() ?? null);
+  // Strg+V: Zeigerposition wenn bekannt, sonst Viewport-Mitte als Fallback
+  // (statt (0,0), was je nach Kameraposition weit außerhalb des Sichtbaren
+  // liegen kann).
+  useKeyboardShortcuts(() =>
+    canvasRef.current?.getLastPointerCell() ?? canvasRef.current?.getViewportCenterCell() ?? null
+  );
 
   // Simulations-Schleife
   useEffect(() => {
@@ -88,6 +93,15 @@ export default function App() {
     }
     try {
       const cells = deserializeSelection(text);
+      // Datei war gültiges JSON mit passender Version, aber am Ende blieb
+      // keine einzige gültige Zelle übrig (z. B. versehentlich eine .u3-
+      // Grid-Datei statt .u3sel gewählt — deren Zellen haben eine andere
+      // Form und werden alle stillschweigend übersprungen). Ohne diesen
+      // Hinweis sieht das wie "Import tut nichts" aus.
+      if (cells.length === 0) {
+        alert('Die Datei enthält keine gültigen Zellen — falsches Dateiformat gewählt?');
+        return;
+      }
       useSelectionStore.getState().setClipboard(cells);
     } catch (e) {
       const msg = e instanceof SerializeError ? e.message : 'Datei konnte nicht gelesen werden';
@@ -122,7 +136,7 @@ export default function App() {
       ────────────────────────────────────────────────────────── */}
       <div className="canvas-area">
         <Canvas ref={canvasRef} />
-        <SelectionActions getPasteAnchor={() => canvasRef.current?.getLastPointerCell() ?? null} />
+        <SelectionActions getPasteAnchor={() => canvasRef.current?.getViewportCenterCell() ?? null} />
         <div className="step-overlay">
           {steps} Schritte · {cells} Zellen
         </div>

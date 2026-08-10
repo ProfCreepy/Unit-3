@@ -167,7 +167,7 @@ export class PointerController {
   private readonly cb: PointerCallbacks;
   private readonly canvas: HTMLCanvasElement;
   private readonly getCamera: () => Camera;
-  private readonly getTool: () => Tool;
+  private readonly getTool: () => Tool | null;
   private readonly getSelectionHit: (cx: number, cy: number) => boolean;
 
   // Einzel-Pointer-Zustand
@@ -207,7 +207,7 @@ export class PointerController {
     canvas: HTMLCanvasElement,
     callbacks: PointerCallbacks,
     getCamera: () => Camera,
-    getTool: () => Tool,
+    getTool: () => Tool | null,
     getSelectionHit: (cx: number, cy: number) => boolean
   ) {
     this.canvas = canvas;
@@ -231,6 +231,11 @@ export class PointerController {
   }
 
   private shouldPan(e: PointerEvent): boolean {
+    // Kein Werkzeug aktiv → JEDE Eingabe pannt (alle Maustasten, ein Finger
+    // auf Touch) — dieser Check läuft in pointerDown VOR Selektion,
+    // Rechtsklick-Löschen und Long-Press-Löschen, daher genügt der einfache
+    // Vorrang hier, ohne diese anderen Zweige einzeln absichern zu müssen.
+    if (this.getTool() === null) return true;
     return e.pointerType === "mouse" && (e.button === 1 || e.altKey);
   }
 

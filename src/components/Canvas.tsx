@@ -29,6 +29,14 @@ export interface CanvasHandle {
    * Pointer-Position oder Kamera (beide leben nur hier in Canvas.tsx-Refs).
    */
   getLastPointerCell: () => [number, number] | null;
+  /**
+   * Zell-Position in der Mitte des aktuell sichtbaren Canvas-Ausschnitts.
+   * Neu für Schritt 5b, Punkt 3: der Einfügen-BUTTON (im Unterschied zu
+   * Strg+V, das die Mausposition sinnvoll nutzen kann) hat auf Touch-
+   * Geräten kein Äquivalent zu einer "Zeigerposition" — dort ist die
+   * Bildschirmmitte der einzige vorhersagbare, immer sichtbare Ankerpunkt.
+   */
+  getViewportCenterCell: () => [number, number];
 }
 
 export const Canvas = forwardRef<CanvasHandle, object>((_props, ref) => {
@@ -56,6 +64,15 @@ export const Canvas = forwardRef<CanvasHandle, object>((_props, ref) => {
       if (!p || !c) return null;
       return getCellAt(p.x, p.y, c, cameraRef.current);
     },
+    getViewportCenterCell: () => {
+      const c = canvasRef.current;
+      if (!c) return [0, 0];
+      // getCellAt erwartet Client-Koordinaten (wie e.clientX/Y) und rechnet
+      // intern über getBoundingClientRect() in Canvas-relative Koordinaten
+      // um — deshalb hier die Mitte des Bounding Rects, nicht clientWidth/2.
+      const rect = c.getBoundingClientRect();
+      return getCellAt(rect.left + rect.width / 2, rect.top + rect.height / 2, c, cameraRef.current);
+    },
   }), []);
 
   // ── Grid aus Zustand (nur für Platzieren/Löschen nötig) ───────────────
@@ -71,7 +88,7 @@ export const Canvas = forwardRef<CanvasHandle, object>((_props, ref) => {
 
   // ── Werkzeug ──────────────────────────────────────────────────────────
   const tool      = useUIStore(s => s.tool);
-  const toolRef   = useRef<Tool>(tool);
+  const toolRef   = useRef<Tool | null>(tool);
   useEffect(() => { toolRef.current = tool; }, [tool]);
 
   // ── Selektion ─────────────────────────────────────────────────────────
@@ -157,10 +174,11 @@ export const Canvas = forwardRef<CanvasHandle, object>((_props, ref) => {
           const g  = gridRef.current;
           const k  = `${cx},${cy}`;
 
-          // Wird bei tool='select' nie aufgerufen (der select-Zweig im
-          // PointerController ruft nie onPlace/onDelete auf), aber TS kennt
-          // diese Laufzeit-Garantie nicht — Guard nötig für Typsicherheit.
-          if (t === 'select') return;
+          // Wird bei tool='select' oder tool=null nie aufgerufen (der
+          // select-Zweig ruft nie onPlace/onDelete auf, und bei null greift
+          // shouldPan() in pointerDown zuerst — alles pannt statt zu platzieren),
+          // aber TS kennt diese Laufzeit-Garantien nicht — Guards nötig für Typsicherheit.
+          if (t === 'select' || t === null) return;
           if (t === 'delete') { delCell(cx, cy); return; }
 
           if (!g.has(k)) {
@@ -293,7 +311,7 @@ export const Canvas = forwardRef<CanvasHandle, object>((_props, ref) => {
   return (
     <canvas
       ref={canvasRef}
-      style={{ cursor: 'crosshair' }}
+      style={{ cursor: tool === null ? 'grab' : 'crosshair' }}
       onPointerDown={fwd(e => {
         lastPointerClientRef.current = { x: e.clientX, y: e.clientY };
         ctrlRef.current?.pointerDown(e);

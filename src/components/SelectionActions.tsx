@@ -6,7 +6,7 @@ import { serializeSelection } from '../lib/serializer';
 import { saveToFile }         from '../lib/fileIO';
 
 interface SelectionActionsProps {
-  /** Letzte bekannte Zeiger-Zellposition — für den Einfügen-Button (Mobile, ohne Strg+V). */
+  /** Zell-Position für den Einfügen-Button — siehe App.tsx (Viewport-Mitte). */
   getPasteAnchor: () => [number, number] | null;
 }
 
@@ -17,6 +17,15 @@ interface SelectionActionsProps {
  * per Touch erreichbar sein, nicht nur über Strg+V).
  * Schwebt über dem Canvas (analog zu .step-overlay), zentriert am unteren Rand.
  * Icon-only per Design — braucht keine Mobile-Sonderbehandlung.
+ *
+ * WICHTIG (Bugfix): `selected`/`grid` sind React-Closure-Werte vom letzten
+ * Render. `finalizePendingMove()` mutiert die Stores zwar SOFORT (Zustand-
+ * Updates sind synchron), aber diese bereits erfassten lokalen Variablen
+ * werden dadurch NICHT automatisch aktuell — die laufende Funktion sieht
+ * weiterhin den alten Stand. Jeder Handler, der nach finalizePendingMove()
+ * noch Grid- oder Selektionsdaten braucht, liest sie deshalb explizit über
+ * .getState() neu — sonst arbeitet er mit Positionen, die es im Grid gar
+ * nicht mehr gibt (Ergebnis: leere Zwischenablage, leere Selektion).
  */
 export function SelectionActions({ getPasteAnchor }: SelectionActionsProps) {
   const selected        = useSelectionStore(s => s.selected);
@@ -24,7 +33,6 @@ export function SelectionActions({ getPasteAnchor }: SelectionActionsProps) {
   const setSelection    = useSelectionStore(s => s.setSelection);
   const copyToClipboard = useSelectionStore(s => s.copyToClipboard);
 
-  const grid        = useGridStore(s => s.grid);
   const deleteCells  = useGridStore(s => s.deleteCells);
   const pasteCells   = useGridStore(s => s.pasteCells);
   const rotateCells  = useGridStore(s => s.rotateCells);
@@ -34,13 +42,17 @@ export function SelectionActions({ getPasteAnchor }: SelectionActionsProps) {
   const hasClipboard = !!clipboard && clipboard.length > 0;
   if (!hasSelection && !hasClipboard) return null;
 
-  const handleCopy = () => { finalizePendingMove(); copyToClipboard(grid); };
+  const handleCopy = () => {
+    finalizePendingMove();
+    copyToClipboard(useGridStore.getState().grid);
+  };
 
   const handleCut = () => {
     // Ausschneiden = Kopieren + Löschen, ein Undo-Schritt (deleteCells).
     finalizePendingMove();
-    copyToClipboard(grid);
-    deleteCells(selected);
+    const freshSelected = useSelectionStore.getState().selected;
+    copyToClipboard(useGridStore.getState().grid);
+    deleteCells(freshSelected);
     setSelection(new Set());
   };
 
@@ -48,42 +60,58 @@ export function SelectionActions({ getPasteAnchor }: SelectionActionsProps) {
     // Gleiche DRY-Begründung wie in useKeyboardShortcuts.ts (Strg+D):
     // nutzt copyToClipboard + pasteCells, überschreibt dabei den Strg+C-Inhalt.
     finalizePendingMove();
-    copyToClipboard(grid);
-    const { minX, minY } = boundingBox(selected);
+    const freshSelected = useSelectionStore.getState().selected;
+    copyToClipboard(useGridStore.getState().grid);
+    // Versatz um die volle Breite statt fixem (1,1) — garantiert KEINE
+    // Überlappung mit dem Original, unabhängig von der Formgröße. Ein
+    // fixer (1,1)-Versatz überlappte bei Formen ≥2×2 eine Ecke und
+    // überschrieb dort sofort eine Original-Zelle.
+    const { minX, minY, maxX } = boundingBox(freshSelected);
+    const width = maxX - minX + 1;
     const dup = useSelectionStore.getState().clipboard ?? [];
-    setSelection(pasteCells(dup, minX + 1, minY + 1));
+    setSelection(pasteCells(dup, minX + width, minY));
   };
 
   const handleRotate = (dir: 1 | -1) => {
     finalizePendingMove();
-    setSelection(rotateCells(selected, dir));
+    const freshSelected = useSelectionStore.getState().selected;
+    setSelection(rotateCells(freshSelected, dir));
   };
 
   const handleMirror = (axis: 'x' | 'y') => {
     finalizePendingMove();
-    setSelection(mirrorCells(selected, axis));
+    const freshSelected = useSelectionStore.getState().selected;
+    setSelection(mirrorCells(freshSelected, axis));
   };
 
   const handleDelete = () => {
     finalizePendingMove();
-    deleteCells(selected);
+    const freshSelected = useSelectionStore.getState().selected;
+    deleteCells(freshSelected);
     setSelection(new Set());
   };
 
   const handlePaste = () => {
     if (!clipboard || clipboard.length === 0) return;
+    // Bugfix: eine evtl. noch schwebende (nicht finalisierte) Verschiebung
+    // MUSS vor dem Einfügen geschrieben werden — sonst "erbt" die neu
+    // eingefügte Selektion später fälschlich den alten pendingOffset (siehe
+    // finalizePendingMove-Dokumentation).
+    finalizePendingMove();
     const anchor = getPasteAnchor() ?? [0, 0];
     setSelection(pasteCells(clipboard, anchor[0], anchor[1]));
   };
 
   const handleExport = async () => {
     finalizePendingMove();
+    const freshSelected = useSelectionStore.getState().selected;
+    const freshGrid = useGridStore.getState().grid;
     // Export liest die AKTUELLE Selektion, nicht die Zwischenablage — falls
     // beide unterschiedlich sind (z. B. selektiert, aber noch nicht kopiert),
     // exportieren wir das, was gerade sichtbar markiert ist.
-    const { minX, minY } = boundingBox(selected);
-    const cells = [...selected].flatMap(k => {
-      const cell = grid.get(k);
+    const { minX, minY } = boundingBox(freshSelected);
+    const cells = [...freshSelected].flatMap(k => {
+      const cell = freshGrid.get(k);
       if (!cell) return [];
       const [x, y] = k.split(',').map(Number);
       return [{ dx: x - minX, dy: y - minY, type: cell.type, state: cell.state, forced: cell.forced ?? false }];

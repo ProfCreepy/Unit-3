@@ -38,8 +38,14 @@ export function Toolbar() {
           key={t.id}
           className="tool-btn"
           onClick={() => {
-            if (tool === 'select' && t.id !== 'select') finalizePendingMove();
-            setTool(t.id);
+            // Erneuter Klick auf das bereits aktive Werkzeug → deselektieren
+            // (kein Werkzeug aktiv, alles pannt — siehe canvas/input.ts shouldPan).
+            const nextTool = tool === t.id ? null : t.id;
+            // Gilt für JEDEN Wechsel WEG von "select" — auch das reine
+            // Deselektieren (nextTool=null), nicht nur der Wechsel zu einem
+            // anderen Werkzeug.
+            if (tool === 'select' && nextTool !== 'select') finalizePendingMove();
+            setTool(nextTool);
           }}
           style={{
             background:  tool === t.id ? t.color : 'transparent',
