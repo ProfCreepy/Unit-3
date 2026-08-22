@@ -61,6 +61,13 @@ export function loadFromFile(accept: string): Promise<string> {
       if (!file) { reject(new Error('Keine Datei gewählt')); return; }
       file.text().then(resolve).catch(reject);
     };
+    // Bugfix: ohne dies löst das Promise bei einem abgebrochenen Datei-Dialog
+    // NIE auf — 'onchange' feuert nur bei tatsächlicher Dateiauswahl, nicht
+    // bei "Abbrechen". Jeder Aufrufer hängt dann unsichtbar in einem nie
+    // erfüllten await fest. Der 'cancel'-Event ist in aktuellen Chromium- und
+    // Firefox-Versionen unterstützt; in älteren Browsern ohne Unterstützung
+    // bleibt das Verhalten wie zuvor (kein Regressions-Risiko).
+    input.addEventListener('cancel', () => reject(new Error('Dateiauswahl abgebrochen')));
     input.click();
   });
 }

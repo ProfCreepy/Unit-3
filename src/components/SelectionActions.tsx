@@ -31,6 +31,7 @@ export function SelectionActions({ getPasteAnchor }: SelectionActionsProps) {
   const selected        = useSelectionStore(s => s.selected);
   const clipboard        = useSelectionStore(s => s.clipboard);
   const setSelection    = useSelectionStore(s => s.setSelection);
+  const clearSelection  = useSelectionStore(s => s.clearSelection);
   const copyToClipboard = useSelectionStore(s => s.copyToClipboard);
 
   const deleteCells  = useGridStore(s => s.deleteCells);
@@ -53,7 +54,10 @@ export function SelectionActions({ getPasteAnchor }: SelectionActionsProps) {
     const freshSelected = useSelectionStore.getState().selected;
     copyToClipboard(useGridStore.getState().grid);
     deleteCells(freshSelected);
-    setSelection(new Set());
+    // clearSelection() statt setSelection(new Set()) — setzt pendingOffset
+    // atomar mit zurück, statt sich darauf zu verlassen, dass es durch
+    // finalizePendingMove() weiter oben schon bei {0,0} steht.
+    clearSelection();
   };
 
   const handleDuplicate = () => {
@@ -88,7 +92,7 @@ export function SelectionActions({ getPasteAnchor }: SelectionActionsProps) {
     finalizePendingMove();
     const freshSelected = useSelectionStore.getState().selected;
     deleteCells(freshSelected);
-    setSelection(new Set());
+    clearSelection();
   };
 
   const handlePaste = () => {

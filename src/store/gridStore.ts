@@ -159,6 +159,12 @@ export const useGridStore = create<GridStore>((set, get) => ({
 
   clear: () => {
     get().pushUndo();
+    // Wie bei undo/redo: eine evtl. schwebende Verschiebung bezieht sich auf
+    // einen Grid-Zustand, der hier komplett gelöscht wird — verwerfen, nicht
+    // finalisieren. Ohne dies blieb "selected" nach Reset auf Zellen zeigen,
+    // die im neuen (leeren) Grid gar nicht mehr existieren — die
+    // SelectionActions-Leiste war weiter sichtbar und operierte auf Phantomen.
+    useSelectionStore.getState().clearSelection();
     set({ grid: new Map(), stepCount: 0, isRunning: false, loopError: null });
   },
 
@@ -180,6 +186,10 @@ export const useGridStore = create<GridStore>((set, get) => ({
   },
 
   pasteCells: (cells, atX, atY) => {
+    // Leeres Array (z. B. wenn eine Duplizieren-Operation aus irgendeinem
+    // Grund keine gültigen Zellen kopiert bekam) → No-Op statt einen
+    // Undo-Schritt für nichts zu verbrauchen.
+    if (cells.length === 0) return new Set();
     if (!batchActive) get().pushUndo();
     const newKeys = new Set<string>();
     set(s => {

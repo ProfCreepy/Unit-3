@@ -49,7 +49,9 @@ export function useKeyboardShortcuts(getPasteAnchor?: () => [number, number] | n
       if (e.key === 's' || e.key === 'S') setTool('select');
 
       // Simulation
-      if (e.key === ' ') { e.preventDefault(); setRunning(!running); }
+      // e.repeat-Guard: ohne dies togglet Halten der Leertaste (OS-Tastenwiederholung)
+      // rasant zwischen Play/Pause hin und her.
+      if (e.key === ' ' && !e.repeat) { e.preventDefault(); setRunning(!running); }
       if (e.key === '.' || e.key === 'ArrowRight') {
         e.preventDefault();
         if (!running) step();
@@ -104,7 +106,7 @@ export function useKeyboardShortcuts(getPasteAnchor?: () => [number, number] | n
         clearSelection();
         return;
       }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v' && clipboard && clipboard.length > 0) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v' && !e.repeat && clipboard && clipboard.length > 0) {
         e.preventDefault();
         // Bugfix: eine evtl. schwebende Verschiebung muss vor dem Einfügen
         // finalisiert werden — sonst "erbt" die neu eingefügte Selektion
@@ -115,7 +117,7 @@ export function useKeyboardShortcuts(getPasteAnchor?: () => [number, number] | n
         setSelection(newKeys);
         return;
       }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd' && selected.size > 0) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd' && !e.repeat && selected.size > 0) {
         e.preventDefault();
         finalizePendingMove();
         const freshSelected = useSelectionStore.getState().selected;
@@ -129,7 +131,7 @@ export function useKeyboardShortcuts(getPasteAnchor?: () => [number, number] | n
         setSelection(newKeys);
         return;
       }
-      if ((e.key === 'r' || e.key === 'R') && selected.size > 0) {
+      if ((e.key === 'r' || e.key === 'R') && !e.repeat && selected.size > 0) {
         e.preventDefault();
         finalizePendingMove();
         const freshSelected = useSelectionStore.getState().selected;
@@ -138,7 +140,7 @@ export function useKeyboardShortcuts(getPasteAnchor?: () => [number, number] | n
         setSelection(newKeys);
         return;
       }
-      if ((e.key === 'm' || e.key === 'M') && selected.size > 0) {
+      if ((e.key === 'm' || e.key === 'M') && !e.repeat && selected.size > 0) {
         e.preventDefault();
         finalizePendingMove();
         const freshSelected = useSelectionStore.getState().selected;
