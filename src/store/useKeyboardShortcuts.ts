@@ -3,7 +3,7 @@ import { useUIStore }        from './uiStore';
 import { useGridStore }      from './gridStore';
 import { useSelectionStore } from './selectionStore';
 import { boundingBox }       from '../canvas/selection';
-import { finalizePendingMove } from './selectionOps';
+import { finalizePendingMove, centeredPasteAnchor } from './selectionOps';
 
 /**
  * Zentraler Keyboard-Shortcut-Hook.
@@ -41,20 +41,48 @@ export function useKeyboardShortcuts(getPasteAnchor?: () => [number, number] | n
     const onKey = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
 
+      // BUGFIX: die 1-Buchstaben-Shortcuts unten prüften bisher NIE, ob
+      // Strg/Cmd/Alt gehalten wird. Dadurch wurde z. B. Strg+S (Seite
+      // speichern) durch setTool('select') "mitgetriggert", und — schwer-
+      // wiegender — Strg+R und Strg+Umschalt+R (Browser-Neuladen / Hard
+      // Reload) wurden per e.preventDefault() im Rotieren-Zweig unten
+      // GESCHLUCKT, sobald eine Selektion aktiv war. noModifier schützt
+      // alle reinen Einzeltasten-Shortcuts davor, mit Browser-Shortcuts zu
+      // kollidieren; die explizit modifier-basierten Shortcuts (Strg+C/X/V/
+      // D/Z/Y weiter unten) sind davon unberührt.
+      const noModifier = !e.ctrlKey && !e.metaKey && !e.altKey;
+
       // Werkzeuge
-      if (e.key === '1') { if (tool === 'select') finalizePendingMove(); setTool('cable'); }
-      if (e.key === '2') { if (tool === 'select') finalizePendingMove(); setTool('inverter'); }
-      if (e.key === '3') { if (tool === 'select') finalizePendingMove(); setTool('delay'); }
-      if (e.key === 'e' || e.key === 'E') { if (tool === 'select') finalizePendingMove(); setTool('delete'); }
-      if (e.key === 's' || e.key === 'S') setTool('select');
+      if (noModifier && e.key === '1') { if (tool === 'select') finalizePendingMove(); setTool('cable'); }
+      if (noModifier && e.key === '2') { if (tool === 'select') finalizePendingMove(); setTool('inverter'); }
+      if (noModifier && e.key === '3') { if (tool === 'select') finalizePendingMove(); setTool('delay'); }
+      if (noModifier && (e.key === 'e' || e.key === 'E')) { if (tool === 'select') finalizePendingMove(); setTool('delete'); }
+      if (noModifier && (e.key === 's' || e.key === 'S')) {
+        // BUGFIX: entspricht jetzt dem Toggle-Verhalten des Werkzeug-Buttons
+        // in Toolbar.tsx (erneutes Aktivieren eines bereits aktiven
+        // Werkzeugs schaltet es aus) — vorher setzte die Taste "S" das
+        // Werkzeug bei wiederholtem Drücken immer wieder auf 'select',
+        // während der gleichnamige Button es beim zweiten Klick deaktivierte.
+        if (tool === 'select') { finalizePendingMove(); setTool(null); }
+        else setTool('select');
+      }
 
       // Simulation
+      // BUGFIX (Kehrseite des Commit-Themas — siehe Regelset in
+      // selectionOps.ts): Simulation liest/mutiert den ECHTEN Grid-Zustand.
+      // Ohne Finalisieren würde bei schwebender Verschiebung ein älterer
+      // Stand simuliert als der gerade sichtbare. Nur beim STARTEN nötig,
+      // nicht beim Pausieren — Pause verändert den Grid-Zustand nicht.
       // e.repeat-Guard: ohne dies togglet Halten der Leertaste (OS-Tastenwiederholung)
       // rasant zwischen Play/Pause hin und her.
-      if (e.key === ' ' && !e.repeat) { e.preventDefault(); setRunning(!running); }
+      if (e.key === ' ' && !e.repeat) {
+        e.preventDefault();
+        if (!running) finalizePendingMove();
+        setRunning(!running);
+      }
       if (e.key === '.' || e.key === 'ArrowRight') {
         e.preventDefault();
-        if (!running) step();
+        if (!running) { finalizePendingMove(); step(); }
       }
 
       // Undo/Redo
@@ -75,7 +103,13 @@ export function useKeyboardShortcuts(getPasteAnchor?: () => [number, number] | n
 
       // ── Selektion (Schritt 5 / 5b) ──────────────────────────────────
       if (e.key === 'Escape') {
-        finalizePendingMove();
+        // BUGFIX: Escape rief vorher finalizePendingMove() auf — committete
+        // die schwebende Verschiebung also, statt sie zu verwerfen. Exakt
+        // dieses Verhalten hatte Aseprite ursprünglich auch und hat es 2025
+        // bewusst als Bug gefixt (aseprite/aseprite#5102): Escape muss die
+        // Original-Position wiederherstellen, keinen Undo-Schritt erzeugen
+        // (siehe Regelset in selectionOps.ts). clearSelection() setzt
+        // pendingOffset bereits mit zurück — kein finalizePendingMove() hier.
         clearSelection();
         // Escape hebt jetzt auch das aktive Werkzeug auf (egal welches) —
         // kein Werkzeug aktiv, alles pannt (siehe canvas/input.ts shouldPan).
@@ -113,7 +147,10 @@ export function useKeyboardShortcuts(getPasteAnchor?: () => [number, number] | n
         // später fälschlich den alten pendingOffset.
         finalizePendingMove();
         const anchor = getPasteAnchor?.() ?? [0, 0];
-        const newKeys = pasteCells(clipboard, anchor[0], anchor[1]);
+        // Zentriert einfügen statt linksbündig — siehe centeredPasteAnchor-Doku
+        // in selectionOps.ts.
+        const [atX, atY] = centeredPasteAnchor(clipboard, anchor[0], anchor[1]);
+        const newKeys = pasteCells(clipboard, atX, atY);
         setSelection(newKeys);
         return;
       }
@@ -131,7 +168,7 @@ export function useKeyboardShortcuts(getPasteAnchor?: () => [number, number] | n
         setSelection(newKeys);
         return;
       }
-      if ((e.key === 'r' || e.key === 'R') && !e.repeat && selected.size > 0) {
+      if (noModifier && (e.key === 'r' || e.key === 'R') && !e.repeat && selected.size > 0) {
         e.preventDefault();
         finalizePendingMove();
         const freshSelected = useSelectionStore.getState().selected;
@@ -140,7 +177,7 @@ export function useKeyboardShortcuts(getPasteAnchor?: () => [number, number] | n
         setSelection(newKeys);
         return;
       }
-      if ((e.key === 'm' || e.key === 'M') && !e.repeat && selected.size > 0) {
+      if (noModifier && (e.key === 'm' || e.key === 'M') && !e.repeat && selected.size > 0) {
         e.preventDefault();
         finalizePendingMove();
         const freshSelected = useSelectionStore.getState().selected;

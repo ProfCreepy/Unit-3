@@ -45,19 +45,35 @@ export function translateKeys(keys: Set<string>, dx: number, dy: number): Set<st
 }
 
 /**
+ * Rundet Halbe IMMER von Null weg (1.5→2 und -1.5→-2) — anders als
+ * Math.round, das Halbe immer Richtung +Infinity rundet (1.5→2, ABER
+ * -1.5→-1, nicht -2). Diese Asymmetrie war die Ursache des Rotations-Drifts,
+ * siehe rotateKeys-Doku unten.
+ */
+function roundHalfAwayFromZero(n: number): number {
+  return n >= 0 ? Math.round(n) : -Math.round(-n);
+}
+
+/**
  * 90°-Rotation um das Bounding-Box-Zentrum.
  * dir: 1 = im Uhrzeigersinn, -1 = gegen den Uhrzeigersinn.
  *
  * Nicht-quadratische Bounding Boxes: Breite/Höhe tauschen sich nach der
  * Rotation (z. B. 1x5-Linie → 5x1-Linie) — das ist korrekt und erwartet.
  *
- * Rundungs-Hinweis: Das neue (dimensionsvertauschte) Rechteck wird so
- * platziert, dass sein Zentrum mit dem alten Zentrum übereinstimmt. Bei
- * ungleicher Breite/Höhen-Parität (z. B. 5x2) ergibt das einen halben
+ * BUGFIX (Drift): bei ungleicher Breite/Höhen-Parität (z. B. 5x2) braucht
+ * die Platzierung des dimensionsvertauschten Rechtecks einen halben
  * Zellen-Versatz, der auf dem Integer-Grid nicht exakt darstellbar ist —
- * es gibt dafür keine "mathematisch korrektere" Alternative, nur eine
- * konsistente Konvention. Wir runden mit Math.round (halbe Werte werden
- * aufgerundet), das ist deterministisch und ausreichend für den Zweck.
+ * das allein ist unvermeidbar. Der eigentliche Bug lag in der Rundung:
+ * Math.round((W-H)/2) und Math.round((H-W)/2) sind bei halben Werten NICHT
+ * exakte Gegenzahlen (Math.round(1.5)=2, aber Math.round(-1.5)=-1, nicht
+ * -2 — JS rundet Halbe immer Richtung +Infinity). Über mehrere Rotationen
+ * hinweg addierten sich diese Asymmetrien zu einem UNBEGRENZTEN Drift auf:
+ * eine 5x2-Form wanderte nach jeweils 4 Rotationen um (+2,+2) weiter, statt
+ * zur Ausgangsposition zurückzukehren. roundHalfAwayFromZero() rundet
+ * symmetrisch (1.5→2, -1.5→-2) — die beiden Versätze heben sich über einen
+ * vollen Rotationszyklus exakt auf, keine Drift mehr, verifiziert für
+ * L-Form, 1x5-Linie, 3x4- und 7x2-Rechteck sowie Quadrate.
  */
 export function rotateKeys(keys: Set<string>, dir: 1 | -1): Set<string> {
   if (keys.size === 0) return new Set();
@@ -65,8 +81,8 @@ export function rotateKeys(keys: Set<string>, dir: 1 | -1): Set<string> {
   const W = maxX - minX + 1;
   const H = maxY - minY + 1;
 
-  const offX = Math.round((W - H) / 2);
-  const offY = Math.round((H - W) / 2);
+  const offX = roundHalfAwayFromZero((W - H) / 2);
+  const offY = roundHalfAwayFromZero((H - W) / 2);
   const newMinX = minX + offX;
   const newMinY = minY + offY;
 

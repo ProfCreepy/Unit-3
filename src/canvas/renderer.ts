@@ -1,5 +1,5 @@
 import type { Grid, CellType } from '../simulation/types';
-import { fromKey } from '../simulation/grid';
+import { fromKey, key } from '../simulation/grid';
 import { type Camera, worldToScreen } from './coordinates';
 
 export type { Camera };
@@ -129,6 +129,14 @@ export function renderFrame(
  * ECHTEN Aussehen (Farbe, Icon, Forced-Badge) an ihrer (ggf. schwebend
  * verschobenen) Position — plus einen dünnen Rahmen zur Kennzeichnung.
  * Läuft IMMER so (auch wenn offset={0,0} — kein bedingter Sonderfall).
+ *
+ * Kollisionswarnung: Während eines aktiven Verschiebens (offset != {0,0})
+ * überschreibt ein Ablegen auf einer bereits belegten, NICHT selektierten
+ * Zelle diese beim Commit kommentarlos (siehe remapCells in gridStore.ts —
+ * bewusste, aber für den Nutzer sonst unsichtbare Kollisions-Policy). Ohne
+ * visuelles Feedback bemerkt man den Datenverlust erst nach dem Loslassen.
+ * Betroffene Zellen bekommen daher einen roten statt weißen Rahmen, solange
+ * die Verschiebung noch schwebt (rein visuell, keine Store-Mutation).
  */
 export function renderSelectionOverlay(
   ctx: CanvasRenderingContext2D,
@@ -139,15 +147,21 @@ export function renderSelectionOverlay(
   activeDragRect: { x0: number; y0: number; x1: number; y1: number } | null,
 ): void {
   const z = cam.zoom;
+  const isMoving = offset.dx !== 0 || offset.dy !== 0;
 
   for (const k of selected) {
     const cell = grid.get(k);
     if (!cell) continue;
     const [cx, cy] = fromKey(k);
-    const [sx, sy] = worldToScreen(cx + offset.dx, cy + offset.dy, cam);
+    const nx = cx + offset.dx, ny = cy + offset.dy;
+    const targetKey = key(nx, ny);
+    // Nur während des Verschiebens relevant — bei offset={0,0} deckt sich
+    // targetKey immer mit der eigenen (selektierten) Originalposition.
+    const collides = isMoving && grid.has(targetKey) && !selected.has(targetKey);
+    const [sx, sy] = worldToScreen(nx, ny, cam);
     drawCell(ctx, cell.type, cell.state, cell.forced, sx, sy, z);
-    ctx.strokeStyle = 'rgba(255,255,255,.7)';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = collides ? 'rgba(255,68,85,.9)' : 'rgba(255,255,255,.7)';
+    ctx.lineWidth = collides ? 2 : 1.5;
     ctx.strokeRect(sx + .5, sy + .5, z - 1, z - 1);
   }
 

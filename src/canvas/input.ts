@@ -236,6 +236,16 @@ export class PointerController {
     // Rechtsklick-Löschen und Long-Press-Löschen, daher genügt der einfache
     // Vorrang hier, ohne diese anderen Zweige einzeln absichern zu müssen.
     if (this.getTool() === null) return true;
+    // BUGFIX: Beim Auswählen-Werkzeug ist Alt bereits als Abziehen-Modifier
+    // belegt (siehe pointerDown select-Zweig: modifierHeld/selectModifier).
+    // Ohne diese Ausnahme fing dieser Check JEDES Alt+Maus-Drag vorher als
+    // Schwenken ab, bevor der Selektions-Zweig überhaupt erreicht wurde —
+    // der Abziehen-Modifier war über Maus dadurch praktisch unerreichbar
+    // (Touch/Stift kennen kein Alt und waren nicht betroffen). Mittlere
+    // Maustaste bleibt als Pan-Auslöser bestehen, die kollidiert mit nichts.
+    if (this.getTool() === "select") {
+      return e.pointerType === "mouse" && e.button === 1;
+    }
     return e.pointerType === "mouse" && (e.button === 1 || e.altKey);
   }
 

@@ -1,7 +1,7 @@
 import { useSelectionStore } from '../store/selectionStore';
 import { useGridStore }      from '../store/gridStore';
 import { boundingBox }       from '../canvas/selection';
-import { finalizePendingMove } from '../store/selectionOps';
+import { finalizePendingMove, centeredPasteAnchor } from '../store/selectionOps';
 import { serializeSelection } from '../lib/serializer';
 import { saveToFile }         from '../lib/fileIO';
 
@@ -16,7 +16,18 @@ interface SelectionActionsProps {
  * existiert (Schritt 5b, Punkt 4 — Einfügen muss auch ohne aktive Selektion
  * per Touch erreichbar sein, nicht nur über Strg+V).
  * Schwebt über dem Canvas (analog zu .step-overlay), zentriert am unteren Rand.
- * Icon-only per Design — braucht keine Mobile-Sonderbehandlung.
+ *
+ * UX-Überarbeitung: vormals reine Icon-Buttons mit `title`-Tooltip. Auf
+ * Touch-Geräten (iPad!) lösen title-Tooltips aber gar nicht erst aus — bei
+ * 10 dicht gepackten Icons (📌 für Einfügen, ⇋/⇵ für Spiegeln, …) war für
+ * Touch-Nutzer nicht erkennbar, was welcher Button tut, außer durch
+ * Ausprobieren. Buttons zeigen jetzt zusätzlich ein Text-Label (per
+ * `.btn-label`, gleiche Konvention wie Toolbar.tsx/SimBar.tsx) sowie ein
+ * `aria-label`. Die Gruppen (Zwischenablage / Transformieren / Exportieren /
+ * Löschen) sind durch Trenner (`.sel-action-divider`, Optik wie in
+ * SimBar.tsx) visuell abgesetzt. `.selection-actions` hatte bereits
+ * `flex-wrap: wrap` — Gruppen brechen auf schmalen Bildschirmen einfach in
+ * eine neue Zeile um, statt abgeschnitten zu werden.
  *
  * WICHTIG (Bugfix): `selected`/`grid` sind React-Closure-Werte vom letzten
  * Render. `finalizePendingMove()` mutiert die Stores zwar SOFORT (Zustand-
@@ -103,7 +114,9 @@ export function SelectionActions({ getPasteAnchor }: SelectionActionsProps) {
     // finalizePendingMove-Dokumentation).
     finalizePendingMove();
     const anchor = getPasteAnchor() ?? [0, 0];
-    setSelection(pasteCells(clipboard, anchor[0], anchor[1]));
+    // Zentriert einfügen statt linksbündig — siehe centeredPasteAnchor-Doku.
+    const [atX, atY] = centeredPasteAnchor(clipboard, anchor[0], anchor[1]);
+    setSelection(pasteCells(clipboard, atX, atY));
   };
 
   const handleExport = async () => {
@@ -129,18 +142,76 @@ export function SelectionActions({ getPasteAnchor }: SelectionActionsProps) {
     }
   };
 
+  // Die drei Gruppen-Trenner sind nur nötig, wenn tatsächlich Gruppen auf
+  // beiden Seiten stehen. Copy/Cut/Duplicate/Rotate*/Mirror*/Export/Delete
+  // hängen ausschließlich an hasSelection — ist eine Selektion aktiv, sind
+  // IMMER alle vier Gruppen befüllt (Einfügen ist der einzige Button, der
+  // unabhängig davon — nur an hasClipboard — hängt und niemals allein eine
+  // Gruppe leer lässt). Ohne aktive Selektion (nur Zwischenablage vorhanden)
+  // gibt es nur den Einfügen-Button und keine Trenner.
+  const showDividers = hasSelection;
+
   return (
     <div className="selection-actions">
-      {hasSelection && <button className="sel-action-btn" onClick={handleCopy} title="Kopieren [Strg+C]">📋</button>}
-      {hasSelection && <button className="sel-action-btn" onClick={handleCut} title="Ausschneiden [Strg+X]">✂️</button>}
-      {hasClipboard && <button className="sel-action-btn" onClick={handlePaste} title="Einfügen [Strg+V]">📌</button>}
-      {hasSelection && <button className="sel-action-btn" onClick={handleDuplicate} title="Duplizieren [Strg+D]">⧉</button>}
-      {hasSelection && <button className="sel-action-btn" onClick={() => handleRotate(1)} title="Rotieren im Uhrzeigersinn [R]">↻</button>}
-      {hasSelection && <button className="sel-action-btn" onClick={() => handleRotate(-1)} title="Rotieren gegen Uhrzeigersinn [Shift+R]">↺</button>}
-      {hasSelection && <button className="sel-action-btn" onClick={() => handleMirror('x')} title="Horizontal spiegeln [M]">⇋</button>}
-      {hasSelection && <button className="sel-action-btn" onClick={() => handleMirror('y')} title="Vertikal spiegeln [Shift+M]">⇵</button>}
-      {hasSelection && <button className="sel-action-btn" onClick={handleExport} title="Selektion exportieren (.u3sel)">📤</button>}
-      {hasSelection && <button className="sel-action-btn sel-action-danger" onClick={handleDelete} title="Löschen [Entf]">🗑</button>}
+      {hasSelection && (
+        <button className="sel-action-btn" onClick={handleCopy} title="Kopieren [Strg+C]" aria-label="Kopieren">
+          📋<span className="btn-label"> Kopieren</span><span className="shortcut"> [Strg+C]</span>
+        </button>
+      )}
+      {hasSelection && (
+        <button className="sel-action-btn" onClick={handleCut} title="Ausschneiden [Strg+X]" aria-label="Ausschneiden">
+          ✂️<span className="btn-label"> Ausschneiden</span><span className="shortcut"> [Strg+X]</span>
+        </button>
+      )}
+      {hasClipboard && (
+        <button className="sel-action-btn" onClick={handlePaste} title="Einfügen [Strg+V]" aria-label="Einfügen">
+          📌<span className="btn-label"> Einfügen</span><span className="shortcut"> [Strg+V]</span>
+        </button>
+      )}
+      {hasSelection && (
+        <button className="sel-action-btn" onClick={handleDuplicate} title="Duplizieren [Strg+D]" aria-label="Duplizieren">
+          ⧉<span className="btn-label"> Duplizieren</span><span className="shortcut"> [Strg+D]</span>
+        </button>
+      )}
+
+      {showDividers && <div className="sel-action-divider" />}
+
+      {hasSelection && (
+        <button className="sel-action-btn" onClick={() => handleRotate(1)} title="Im Uhrzeigersinn drehen [R]" aria-label="Im Uhrzeigersinn drehen">
+          ↻<span className="btn-label"> Drehen +90°</span><span className="shortcut"> [R]</span>
+        </button>
+      )}
+      {hasSelection && (
+        <button className="sel-action-btn" onClick={() => handleRotate(-1)} title="Gegen den Uhrzeigersinn drehen [Umschalt+R]" aria-label="Gegen den Uhrzeigersinn drehen">
+          ↺<span className="btn-label"> Drehen −90°</span><span className="shortcut"> [⇧R]</span>
+        </button>
+      )}
+      {hasSelection && (
+        <button className="sel-action-btn" onClick={() => handleMirror('x')} title="Horizontal spiegeln [M]" aria-label="Horizontal spiegeln">
+          ⇋<span className="btn-label"> Horizontal</span><span className="shortcut"> [M]</span>
+        </button>
+      )}
+      {hasSelection && (
+        <button className="sel-action-btn" onClick={() => handleMirror('y')} title="Vertikal spiegeln [Umschalt+M]" aria-label="Vertikal spiegeln">
+          ⇵<span className="btn-label"> Vertikal</span><span className="shortcut"> [⇧M]</span>
+        </button>
+      )}
+
+      {showDividers && <div className="sel-action-divider" />}
+
+      {hasSelection && (
+        <button className="sel-action-btn" onClick={handleExport} title="Selektion exportieren (.u3sel)" aria-label="Selektion exportieren">
+          📤<span className="btn-label"> Exportieren</span>
+        </button>
+      )}
+
+      {showDividers && <div className="sel-action-divider" />}
+
+      {hasSelection && (
+        <button className="sel-action-btn sel-action-danger" onClick={handleDelete} title="Löschen [Entf]" aria-label="Löschen">
+          🗑<span className="btn-label"> Löschen</span><span className="shortcut"> [Entf]</span>
+        </button>
+      )}
     </div>
   );
 }
