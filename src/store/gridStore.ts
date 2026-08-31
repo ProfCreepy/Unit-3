@@ -34,8 +34,15 @@ let batchActive = false;
  * Input-Set unverändert durch, siehe canvas/selection.ts).
  * Erst ALLE Quellen löschen, DANN ALLE Ziele setzen — verhindert Kollisionen
  * bei überlappenden alten/neuen Positionen (z. B. Verschieben um 1 Zelle).
- * Ziel-Zellen außerhalb der Selektion werden dabei überschrieben
- * (Kollisions-Policy, konsistent mit setCell).
+ *
+ * Kollisions-Policy NUR für Verschieben (moveCells): Ziel-Zellen außerhalb
+ * der Selektion werden überschrieben. Bewusst weiterhin so, weil Verschieben
+ * als einzige dieser Operationen eine Live-Vorschau während des Drags hat
+ * (siehe renderSelectionOverlay in renderer.ts, rote Kollisionswarnung) —
+ * der Nutzer sieht den Konflikt VOR dem Loslassen und kann ausweichen.
+ * rotateCells/mirrorCells/pasteCells haben KEINE Vorschau und committen
+ * sofort beim Klick — dort wird eine Kollision stattdessen blockiert (siehe
+ * dort), nicht stillschweigend überschrieben.
  */
 function remapCells(grid: Grid, oldKeys: Set<string>, newKeys: Set<string>): Grid {
   const g = new Map(grid);
@@ -80,12 +87,26 @@ interface GridStore {
   moveCells:   (keys: Set<string>, dx: number, dy: number) => void;
   /** Löscht alle Zellen mit den gegebenen Keys. */
   deleteCells: (keys: Set<string>) => void;
-  /** Fügt Zwischenablage-Zellen ein, verankert bei (atX, atY). Überschreibt Ziel-Zellen. */
-  pasteCells:  (cells: ClipboardCell[], atX: number, atY: number) => Set<string>;
-  /** Rotiert die Zellen mit den gegebenen Keys um ihr gemeinsames Zentrum. */
-  rotateCells: (keys: Set<string>, dir: 1 | -1) => Set<string>;
-  /** Spiegelt die Zellen mit den gegebenen Keys. */
-  mirrorCells: (keys: Set<string>, axis: 'x' | 'y') => Set<string>;
+  /**
+   * Fügt Zwischenablage-Zellen ein, verankert bei (atX, atY).
+   * BUGFIX: überschreibt KEINE bestehenden Zellen mehr — gibt bei Kollision
+   * `null` zurück (No-Op, kein Undo-Schritt) statt fremde Zellen
+   * stillschweigend zu zerstören. Siehe remapCells-Doku für die Begründung
+   * des Policy-Unterschieds zu moveCells.
+   */
+  pasteCells:  (cells: ClipboardCell[], atX: number, atY: number) => Set<string> | null;
+  /**
+   * Rotiert die Zellen mit den gegebenen Keys um ihr gemeinsames Zentrum.
+   * BUGFIX: `null` bei Kollision mit fremden (nicht selbst selektierten)
+   * Zellen — No-Op statt stillschweigend zu überschreiben.
+   */
+  rotateCells: (keys: Set<string>, dir: 1 | -1) => Set<string> | null;
+  /**
+   * Spiegelt die Zellen mit den gegebenen Keys.
+   * BUGFIX: `null` bei Kollision mit fremden Zellen — No-Op statt
+   * stillschweigend zu überschreiben.
+   */
+  mirrorCells: (keys: Set<string>, axis: 'x' | 'y') => Set<string> | null;
 
   /** Speichert den aktuellen Grid-Zustand auf dem Undo-Stack (max. 60). */
   pushUndo:   () => void;
@@ -190,6 +211,16 @@ export const useGridStore = create<GridStore>((set, get) => ({
     // Grund keine gültigen Zellen kopiert bekam) → No-Op statt einen
     // Undo-Schritt für nichts zu verbrauchen.
     if (cells.length === 0) return new Set();
+    // BUGFIX: keine bestehenden Zellen mehr überschreiben. Der Einfüge-Anker
+    // (Viewport-Mitte für den Button, Zeigerposition für Strg+V) kann JEDE
+    // bestehende Zelle treffen — auch die gerade erst kopierte Original-
+    // Selektion selbst, falls sie sich noch dort befindet. Ohne diesen Check
+    // konnte Einfügen fremden (oder den eigenen, noch nicht deselektierten)
+    // Inhalt stillschweigend zerstören.
+    const g0 = get().grid;
+    for (const c of cells) {
+      if (g0.has(key(atX + c.dx, atY + c.dy))) return null;
+    }
     if (!batchActive) get().pushUndo();
     const newKeys = new Set<string>();
     set(s => {
@@ -206,6 +237,15 @@ export const useGridStore = create<GridStore>((set, get) => ({
 
   rotateCells: (keys, dir) => {
     const newKeys = rotateKeys(keys, dir);
+    // BUGFIX: keine fremden Zellen mehr überschreiben. Rotieren hat — anders
+    // als Verschieben — keine Live-Vorschau, in der eine Kollision vor dem
+    // Commit sichtbar wäre; ohne diesen Check verschwanden benachbarte,
+    // nicht selektierte Zellen sofort und ohne jede Vorwarnung, sobald die
+    // gedrehte Form (Breite/Höhe tauschen die Rollen!) in ihren Bereich
+    // hineinragte.
+    for (const k of newKeys) {
+      if (get().grid.has(k) && !keys.has(k)) return null;
+    }
     if (!batchActive) get().pushUndo();
     set(s => ({ grid: remapCells(s.grid, keys, newKeys) }));
     return newKeys;
@@ -213,6 +253,11 @@ export const useGridStore = create<GridStore>((set, get) => ({
 
   mirrorCells: (keys, axis) => {
     const newKeys = mirrorKeys(keys, axis);
+    // BUGFIX: gleicher Grund wie bei rotateCells — keine Live-Vorschau,
+    // also keine stillschweigende Kollision erlauben.
+    for (const k of newKeys) {
+      if (get().grid.has(k) && !keys.has(k)) return null;
+    }
     if (!batchActive) get().pushUndo();
     set(s => ({ grid: remapCells(s.grid, keys, newKeys) }));
     return newKeys;

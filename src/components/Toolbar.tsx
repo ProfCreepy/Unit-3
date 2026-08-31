@@ -1,4 +1,5 @@
 import { useUIStore }   from '../store/uiStore';
+import { useSelectionStore } from '../store/selectionStore';
 import type { Tool }    from '../canvas/input';
 import { finalizePendingMove } from '../store/selectionOps';
 
@@ -18,6 +19,7 @@ const TOOLS: { id: Tool; icon: string; label: string; shortcut: string; color: s
 export function Toolbar() {
   const tool    = useUIStore(s => s.tool);
   const setTool = useUIStore(s => s.setTool);
+  const clearSelection = useSelectionStore(s => s.clearSelection);
 
   return (
     <div className="scroll-row" style={{
@@ -44,7 +46,18 @@ export function Toolbar() {
             // Gilt für JEDEN Wechsel WEG von "select" — auch das reine
             // Deselektieren (nextTool=null), nicht nur der Wechsel zu einem
             // anderen Werkzeug.
-            if (tool === 'select' && nextTool !== 'select') finalizePendingMove();
+            if (tool === 'select' && nextTool !== 'select') {
+              finalizePendingMove();
+              // BUGFIX: eine Selektion blieb bisher bestehen (samt sichtbarem
+              // Rahmen UND aktiver SelectionActions-Leiste), obwohl ein
+              // komplett anderes Werkzeug aktiv wurde. Das führte dazu, dass
+              // man mit dem NEUEN Werkzeug versehentlich Zellen genau dort
+              // platzieren konnte, wo die noch "selektierten" (aber
+              // eigentlich vergessenen) Zellen lagen — setCell überschreibt
+              // ohne Rückfrage. Deselektieren gehört zum Werkzeugwechsel
+              // dazu, nicht nur das Finalisieren der Verschiebung.
+              clearSelection();
+            }
             setTool(nextTool);
           }}
           style={{

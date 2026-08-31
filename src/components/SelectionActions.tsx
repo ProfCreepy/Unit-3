@@ -84,19 +84,28 @@ export function SelectionActions({ getPasteAnchor }: SelectionActionsProps) {
     const { minX, minY, maxX } = boundingBox(freshSelected);
     const width = maxX - minX + 1;
     const dup = useSelectionStore.getState().clipboard ?? [];
-    setSelection(pasteCells(dup, minX + width, minY));
+    const newKeys = pasteCells(dup, minX + width, minY);
+    // null = Zielposition überschneidet sich mit FREMDEM Inhalt (z. B. einer
+    // anderen Form direkt rechts daneben) — pasteCells hat nichts geschrieben,
+    // Selektion bleibt unverändert bestehen statt sie auf nichts zu setzen.
+    if (newKeys) setSelection(newKeys);
   };
 
   const handleRotate = (dir: 1 | -1) => {
     finalizePendingMove();
     const freshSelected = useSelectionStore.getState().selected;
-    setSelection(rotateCells(freshSelected, dir));
+    const newKeys = rotateCells(freshSelected, dir);
+    // null = die gedrehte Form würde fremde Zellen überschreiben (siehe
+    // rotateCells-Doku in gridStore.ts) — nichts passiert, Selektion bleibt
+    // unverändert an ihrer alten Position/Ausrichtung stehen.
+    if (newKeys) setSelection(newKeys);
   };
 
   const handleMirror = (axis: 'x' | 'y') => {
     finalizePendingMove();
     const freshSelected = useSelectionStore.getState().selected;
-    setSelection(mirrorCells(freshSelected, axis));
+    const newKeys = mirrorCells(freshSelected, axis);
+    if (newKeys) setSelection(newKeys);
   };
 
   const handleDelete = () => {
@@ -116,7 +125,10 @@ export function SelectionActions({ getPasteAnchor }: SelectionActionsProps) {
     const anchor = getPasteAnchor() ?? [0, 0];
     // Zentriert einfügen statt linksbündig — siehe centeredPasteAnchor-Doku.
     const [atX, atY] = centeredPasteAnchor(clipboard, anchor[0], anchor[1]);
-    setSelection(pasteCells(clipboard, atX, atY));
+    const newKeys = pasteCells(clipboard, atX, atY);
+    // null = Zielposition belegt (z. B. weil die kopierte Original-Selektion
+    // noch genau dort liegt) — nichts eingefügt, alte Selektion bleibt.
+    if (newKeys) setSelection(newKeys);
   };
 
   const handleExport = async () => {

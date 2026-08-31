@@ -53,17 +53,34 @@ export function useKeyboardShortcuts(getPasteAnchor?: () => [number, number] | n
       const noModifier = !e.ctrlKey && !e.metaKey && !e.altKey;
 
       // Werkzeuge
-      if (noModifier && e.key === '1') { if (tool === 'select') finalizePendingMove(); setTool('cable'); }
-      if (noModifier && e.key === '2') { if (tool === 'select') finalizePendingMove(); setTool('inverter'); }
-      if (noModifier && e.key === '3') { if (tool === 'select') finalizePendingMove(); setTool('delay'); }
-      if (noModifier && (e.key === 'e' || e.key === 'E')) { if (tool === 'select') finalizePendingMove(); setTool('delete'); }
+      // BUGFIX: Werkzeugwechsel hob bisher nur die schwebende Verschiebung
+      // auf (finalizePendingMove), die Selektion selbst blieb aktiv — siehe
+      // ausführliche Begründung in Toolbar.tsx (gleicher Fix). clearSelection
+      // ruft finalizePendingMove NICHT ersetzend auf, sondern ergänzend:
+      // erst committen (siehe Regelset), dann deselektieren.
+      if (noModifier && e.key === '1') {
+        if (tool === 'select') { finalizePendingMove(); clearSelection(); }
+        setTool('cable');
+      }
+      if (noModifier && e.key === '2') {
+        if (tool === 'select') { finalizePendingMove(); clearSelection(); }
+        setTool('inverter');
+      }
+      if (noModifier && e.key === '3') {
+        if (tool === 'select') { finalizePendingMove(); clearSelection(); }
+        setTool('delay');
+      }
+      if (noModifier && (e.key === 'e' || e.key === 'E')) {
+        if (tool === 'select') { finalizePendingMove(); clearSelection(); }
+        setTool('delete');
+      }
       if (noModifier && (e.key === 's' || e.key === 'S')) {
         // BUGFIX: entspricht jetzt dem Toggle-Verhalten des Werkzeug-Buttons
         // in Toolbar.tsx (erneutes Aktivieren eines bereits aktiven
         // Werkzeugs schaltet es aus) — vorher setzte die Taste "S" das
         // Werkzeug bei wiederholtem Drücken immer wieder auf 'select',
         // während der gleichnamige Button es beim zweiten Klick deaktivierte.
-        if (tool === 'select') { finalizePendingMove(); setTool(null); }
+        if (tool === 'select') { finalizePendingMove(); clearSelection(); setTool(null); }
         else setTool('select');
       }
 
@@ -151,7 +168,9 @@ export function useKeyboardShortcuts(getPasteAnchor?: () => [number, number] | n
         // in selectionOps.ts.
         const [atX, atY] = centeredPasteAnchor(clipboard, anchor[0], anchor[1]);
         const newKeys = pasteCells(clipboard, atX, atY);
-        setSelection(newKeys);
+        // null = Zielposition belegt — nichts eingefügt, alte Selektion
+        // bleibt bestehen (siehe pasteCells-Doku in gridStore.ts).
+        if (newKeys) setSelection(newKeys);
         return;
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd' && !e.repeat && selected.size > 0) {
@@ -165,7 +184,7 @@ export function useKeyboardShortcuts(getPasteAnchor?: () => [number, number] | n
         const width = maxX - minX + 1;
         const dup = useSelectionStore.getState().clipboard ?? [];
         const newKeys = pasteCells(dup, minX + width, minY);
-        setSelection(newKeys);
+        if (newKeys) setSelection(newKeys);
         return;
       }
       if (noModifier && (e.key === 'r' || e.key === 'R') && !e.repeat && selected.size > 0) {
@@ -174,7 +193,7 @@ export function useKeyboardShortcuts(getPasteAnchor?: () => [number, number] | n
         const freshSelected = useSelectionStore.getState().selected;
         const dir = e.shiftKey ? -1 : 1;
         const newKeys = rotateCells(freshSelected, dir);
-        setSelection(newKeys);
+        if (newKeys) setSelection(newKeys);
         return;
       }
       if (noModifier && (e.key === 'm' || e.key === 'M') && !e.repeat && selected.size > 0) {
@@ -183,7 +202,7 @@ export function useKeyboardShortcuts(getPasteAnchor?: () => [number, number] | n
         const freshSelected = useSelectionStore.getState().selected;
         const axis = e.shiftKey ? 'y' : 'x';
         const newKeys = mirrorCells(freshSelected, axis);
-        setSelection(newKeys);
+        if (newKeys) setSelection(newKeys);
         return;
       }
     };

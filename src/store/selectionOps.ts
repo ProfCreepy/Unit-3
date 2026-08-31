@@ -23,7 +23,15 @@ import { translateKeys }     from '../canvas/selection';
  *     anywhere on the image except on the floating selection." — jede
  *     andere Interaktion anchert/committed die schwebende Auswahl.)
  *   • WERKZEUG-WECHSEL — weg von "select", inklusive Abwählen des
- *     bereits aktiven Werkzeugs per Klick/Taste.
+ *     bereits aktiven Werkzeugs per Klick/Taste. BUGFIX: dabei muss auch
+ *     die Selektion SELBST aufgehoben werden (clearSelection()), nicht nur
+ *     die schwebende Verschiebung committed — sonst blieb die Selektion
+ *     (samt sichtbarem Rahmen und aktiver SelectionActions-Leiste) über den
+ *     Werkzeugwechsel hinweg bestehen, und ein komplett anderes Werkzeug
+ *     (z. B. Kabel) konnte versehentlich Zellen genau dort platzieren, wo
+ *     die vergessene Selektion noch lag — setCell überschreibt ohne
+ *     Rückfrage. Reihenfolge: erst finalizePendingMove() (Position
+ *     erhalten), DANN clearSelection() (loslassen).
  *   • Aktionen, die den ECHTEN (nicht nur visuell verschobenen)
  *     Grid-Zustand lesen müssen, bevor sie selbst laufen: Simulation
  *     starten/steppen, Speichern. Das ist kein "unwanted commit",
@@ -58,6 +66,30 @@ import { translateKeys }     from '../canvas/selection';
  *     jede Bewegung — es ist keine neue Aktion passiert.
  *   • Reines Rendern — pendingOffset ist rein visuell, bis eine der
  *     obigen Situationen eintritt.
+ * ═══════════════════════════════════════════════════════════════════
+ *
+ * ═══════════════════════════════════════════════════════════════════
+ * KOLLISIONS-POLICY: Fremde Zellen überschreiben oder blockieren?
+ * ═══════════════════════════════════════════════════════════════════
+ * Zwei unterschiedliche Policies, je nachdem ob die Aktion eine
+ * Live-Vorschau hat, in der eine Kollision VOR dem Commit sichtbar wäre:
+ *
+ * • moveCells (Verschieben per Drag): überschreibt weiterhin bewusst.
+ *   renderSelectionOverlay() (renderer.ts) zeigt eine rote Kollisions-
+ *   warnung WÄHREND des Drags — der Nutzer sieht den Konflikt vor dem
+ *   Loslassen und kann ausweichen. Committen trotz Warnung ist eine
+ *   bewusste Entscheidung, kein Versehen.
+ *
+ * • rotateCells/mirrorCells/pasteCells (und darüber Duplizieren, das
+ *   pasteCells wiederverwendet): BLOCKIEREN bei Kollision (geben `null`
+ *   zurück, No-Op — kein Undo-Schritt, Selektion bleibt unverändert).
+ *   Diese Aktionen committen sofort per Klick/Taste, OHNE Vorschau — eine
+ *   Kollision wäre sofort und ohne jede Vorwarnung destruktiv. Besonders
+ *   bei Rotieren tückisch: Breite/Höhe tauschen die Rollen, die gedrehte
+ *   Form kann dadurch in Bereiche hineinragen, die die ungedrehte Form nie
+ *   berührt hat. Bei Einfügen kann der Anker (Viewport-Mitte/Zeiger) auch
+ *   die gerade erst kopierte, noch nicht deselektierte Original-Selektion
+ *   selbst treffen.
  * ═══════════════════════════════════════════════════════════════════
  */
 
